@@ -280,9 +280,12 @@ bool resolver::ResolverAmdAutolykosV2::executeSync(stratum::StratumJobInfo const
         cl::NullRange,
         cl::NDRange(maxGroupSizeSearch, 1, 1),
         cl::NDRange(algo::autolykos_v2::AMD_BLOCK_DIM, 1, 1)));
-    OPENCL_ER(clQueue[currentIndexStream]->finish());
 
     ////////////////////////////////////////////////////////////////////////////
+    // The command queue is in-order, so the verify kernel below will not start
+    // until the search kernel above completes (it consumes BHashes). No host
+    // round-trip (finish) is needed between them -- one finish after verify is
+    // enough to guarantee both have completed before reading results back.
     auto& clKernelVerify{ kernelGeneratorVerify.clKernel };
     OPENCL_ER(clKernelVerify.setArg(0u, *(parameters.boundaryCache.getBuffer())));
     OPENCL_ER(clKernelVerify.setArg(1u, *(parameters.dagCache.getBuffer())));
