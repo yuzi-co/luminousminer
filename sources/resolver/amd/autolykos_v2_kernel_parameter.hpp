@@ -23,6 +23,7 @@ namespace resolver
                 uint32_t      hostDagItemCount{ 0u };
                 uint64_t      hostNonce{ 0ull };
                 algo::hash256 hostHeader{};
+                algo::hash256 hostBoundary{};
 
                 common::opencl::Buffer<algo::u_hash256> BHashes{ CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS };
                 common::opencl::Buffer<algo::u_hash256> dagCache{ CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS };
