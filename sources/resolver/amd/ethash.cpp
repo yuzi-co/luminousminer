@@ -273,7 +273,35 @@ bool resolver::ResolverAmdEthash::executeSync(stratum::StratumJobInfo const& job
 
 bool resolver::ResolverAmdEthash::executeAsync(stratum::StratumJobInfo const& jobInfo)
 {
-    return executeSync(jobInfo);
+    // Double-buffered pipeline (mirrors the AMD ProgPOW resolver): wait only for
+    // the batch in flight on the current stream, enqueue the next batch on the
+    // alternate stream without blocking, then read back the just-finished batch
+    // while the GPU computes the new one. This overlaps GPU compute with the
+    // host-side result handling / share submission that previously ran only
+    // after a full finish().
+    OPENCL_ER(clQueue[currentIndexStream]->finish());
+
+    swapIndexStream();
+    auto& clKernel{ kernelGenerator.clKernel };
+    OPENCL_ER(clKernel.setArg(0u, *(parameters.dagCache.getBuffer())));
+    OPENCL_ER(clKernel.setArg(1u, *(parameters.resultCache.getBuffer())));
+    OPENCL_ER(clKernel.setArg(2u, *(parameters.headerCache.getBuffer())));
+    OPENCL_ER(clKernel.setArg(3u, jobInfo.nonce));
+    OPENCL_ER(clKernel.setArg(4u, jobInfo.boundaryU64));
+    OPENCL_ER(clQueue[currentIndexStream]->enqueueNDRangeKernel(
+        clKernel,
+        cl::NullRange,
+        cl::NDRange(blocks, threads, 1),
+        cl::NDRange(blocks, 1, 1)));
+
+    swapIndexStream();
+    if (false == getResultCache(jobInfo.jobIDStr, jobInfo.extraNonceSize))
+    {
+        return false;
+    }
+
+    swapIndexStream();
+    return true;
 }
 
 
