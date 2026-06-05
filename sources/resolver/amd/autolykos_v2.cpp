@@ -311,7 +311,55 @@ bool resolver::ResolverAmdAutolykosV2::executeSync(stratum::StratumJobInfo const
 
 bool resolver::ResolverAmdAutolykosV2::executeAsync(stratum::StratumJobInfo const& jobInfo)
 {
-    return executeSync(jobInfo);
+    ////////////////////////////////////////////////////////////////////////////
+    // Double-buffered pipeline (mirrors the AMD ProgPOW resolver): wait only for
+    // the batch in flight on the current stream, enqueue the next search+verify
+    // batch on the alternate stream without blocking, then read back the
+    // just-finished batch while the GPU computes the new one. Search and verify
+    // share an in-order queue, so verify still waits for search device-side
+    // without an intervening host finish().
+    OPENCL_ER(clQueue[currentIndexStream]->finish());
+
+    ////////////////////////////////////////////////////////////////////////////
+    swapIndexStream();
+    parameters.hostNonce = jobInfo.nonce;
+
+    auto& clKernel{ kernelGeneratorSearch.clKernel };
+    OPENCL_ER(clKernel.setArg(0u, *(parameters.headerCache.getBuffer())));
+    OPENCL_ER(clKernel.setArg(1u, *(parameters.dagCache.getBuffer())));
+    OPENCL_ER(clKernel.setArg(2u, *(parameters.BHashes.getBuffer())));
+    OPENCL_ER(clKernel.setArg(3u, parameters.hostNonce));
+    OPENCL_ER(clKernel.setArg(4u, parameters.hostPeriod));
+    OPENCL_ER(clQueue[currentIndexStream]->enqueueNDRangeKernel(
+        clKernel,
+        cl::NullRange,
+        cl::NDRange(maxGroupSizeSearch, 1, 1),
+        cl::NDRange(algo::autolykos_v2::AMD_BLOCK_DIM, 1, 1)));
+
+    auto& clKernelVerify{ kernelGeneratorVerify.clKernel };
+    OPENCL_ER(clKernelVerify.setArg(0u, *(parameters.boundaryCache.getBuffer())));
+    OPENCL_ER(clKernelVerify.setArg(1u, *(parameters.dagCache.getBuffer())));
+    OPENCL_ER(clKernelVerify.setArg(2u, *(parameters.BHashes.getBuffer())));
+    OPENCL_ER(clKernelVerify.setArg(3u, *(parameters.resultCache.getBuffer())));
+    OPENCL_ER(clKernelVerify.setArg(4u, parameters.hostNonce));
+    OPENCL_ER(clKernelVerify.setArg(5u, parameters.hostPeriod));
+    OPENCL_ER(clKernelVerify.setArg(6u, parameters.hostHeight));
+    OPENCL_ER(clQueue[currentIndexStream]->enqueueNDRangeKernel(
+        clKernelVerify,
+        cl::NullRange,
+        cl::NDRange(maxGroupSizeVerify, 1, 1),
+        cl::NDRange(algo::autolykos_v2::AMD_BLOCK_DIM, 1, 1)));
+
+    ////////////////////////////////////////////////////////////////////////////
+    swapIndexStream();
+    if (false == getResultCache(jobInfo.jobIDStr, jobInfo.extraNonceSize, jobInfo.extraNonce2Size))
+    {
+        return false;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    swapIndexStream();
+    return true;
 }
 
 
