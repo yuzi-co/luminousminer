@@ -110,6 +110,10 @@ bool resolver::ResolverAmdAutolykosV2::updateConstants(stratum::StratumJobInfo c
     parameters.hostDagItemCount = castU32(jobInfo.period);
 
     ////////////////////////////////////////////////////////////////////////////
+    // Keep a host copy of the boundary: it is device-read-only (CL_MEM_READ_ONLY
+    // | CL_MEM_HOST_WRITE_ONLY) and only consumed by host-side share validation,
+    // so there is no need to read it back from the device every batch.
+    parameters.hostBoundary = jobInfo.boundary;
     uint32_t const* const boundary{ jobInfo.boundary.word32 };
     if (false == parameters.boundaryCache.setBufferDevice(clQueue[currentIndexStream], boundary))
     {
@@ -321,16 +325,9 @@ bool resolver::ResolverAmdAutolykosV2::getResultCache(
     uint32_t const     extraNonce2Size)
 {
     algo::autolykos_v2::Result data{};
-    algo::hash256              boundary{};
 
     ////////////////////////////////////////////////////////////////////////////
     if (false == parameters.resultCache.getBufferHost(clQueue[currentIndexStream], &data))
-    {
-        return false;
-    }
-
-    ////////////////////////////////////////////////////////////////////////////
-    if (false == parameters.boundaryCache.getBufferHost(clQueue[currentIndexStream], boundary.word32))
     {
         return false;
     }
@@ -346,7 +343,7 @@ bool resolver::ResolverAmdAutolykosV2::getResultCache(
             auto const nonce{ data.nonces[i] };
             auto const isValid{ algo::autolykos_v2::mhssamadani::isValidShare(
                 parameters.hostHeader,
-                boundary,
+                parameters.hostBoundary,
                 nonce,
                 parameters.hostHeight) };
             resolverDebug() << "test nonce[" << std::hex << nonce << "] is " << std::boolalpha << isValid;
