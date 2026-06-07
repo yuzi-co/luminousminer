@@ -123,19 +123,31 @@ void progpow_search(
     uint const thread_id = get_global_id(0) + (get_global_id(1) * GROUP_SIZE);
     uint const lane_id = thread_id % LANES;
     uint const worker_group = get_global_id(0) / LANES;
-    ulong nonce = start_nonce + thread_id;
     uint const index_share_seed = get_global_id(0) / BATCH_GROUP_LANE;
+    ulong const base_nonce = start_nonce + thread_id;
 
     ////////////////////////////////////////////////////////////////////////
+    // The 16 KB DAG cache is identical for every nonce in this launch, so it is
+    // filled once, outside the internal loop.
     initialize_header(dag, header_dag, (thread_id % GROUP_SIZE));
-    ulong const seed = initialize_seed(header, state_mix, nonce);
 
 #if defined(INTERNAL_LOOP)
+    // Each work-item hashes INTERNAL_LOOP independent nonces strided by
+    // TOTAL_THREADS (the host advances its batch nonce by
+    // blocks*threads*INTERNAL_LOOP, so the per-item ranges tile without gaps).
+    // The seed is nonce-dependent and is recomputed every iteration: the
+    // previous code hoisted initialize_seed out of the loop, so i>0 hashed the
+    // i==0 seed against an incremented nonce (wrong digest), and the stride was
+    // a triangular `nonce += i*TOTAL_THREADS` instead of a flat i*TOTAL_THREADS.
     __attribute__((opencl_unroll_hint(1)))
-    for (uint i = 0; i < INTERNAL_LOOP; ++i)
+    for (uint i = 0u; i < INTERNAL_LOOP; ++i)
     {
-        nonce += (i * TOTAL_THREADS);
+        ulong const nonce = base_nonce + (ulong)i * (ulong)TOTAL_THREADS;
+#else
+    {
+        ulong const nonce = base_nonce;
 #endif
+        ulong const seed = initialize_seed(header, state_mix, nonce);
         __attribute__((opencl_unroll_hint(1)))
         for (uint l_id = 0u; l_id < LANES; ++l_id)
         {
@@ -185,7 +197,5 @@ void progpow_search(
                 result->hash[index][7] = digest[7];
             }
         }
-#if defined(INTERNAL_LOOP)
     }
-#endif
 }
