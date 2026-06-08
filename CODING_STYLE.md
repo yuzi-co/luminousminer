@@ -1,8 +1,13 @@
 # Coding Style
 
-> Enforced automatically by `.clang-format` (clang-format-15) and `.clang-tidy`.
+> Formatting (layout, alignment, column limit) is enforced automatically by
+> `.clang-format` (clang-format-15) and `.clang-tidy`.
 > Run `cmake --build <build_dir> --target format` to auto-format.
 > Run `cmake --build <build_dir> --target format-check` to verify without modifying.
+>
+> Semantic conventions that the formatter cannot check — enum `switch` dispatch,
+> `cast.hpp` macros, separating an action from its check, comment style — are
+> enforced at code review. Follow them by hand.
 
 ---
 
@@ -61,6 +66,71 @@ private:
 
 ---
 
+## Enum
+
+- Always give an `enum class` an **explicit underlying type** (`uint8_t` unless a wider range is needed).
+- Dispatch on an enum with `switch`, **not** an `if`/`else if` chain.
+- Handle **every** enumerator explicitly and do **not** add a `default:` case. An exhaustive `switch` with no `default` makes the compiler (`-Wswitch`) flag a newly added enumerator at every dispatch site — a `default` or an `if`/`else` chain silently swallows it.
+
+```cpp
+enum class Backend : uint8_t
+{
+    NONE,
+    PMLOG,
+    OVERDRIVE5
+};
+
+switch (backend)
+{
+    case Backend::PMLOG:
+    {
+        // code
+        break;
+    }
+    case Backend::OVERDRIVE5:
+    {
+        // code
+        break;
+    }
+    case Backend::NONE:
+    {
+        // code
+        break;
+    }
+}
+```
+
+
+---
+
+## Casts
+
+- Use the `cast*` macros from `common/cast.hpp` instead of a bare `static_cast` / `reinterpret_cast` for value conversions: `castSize`, `cast32`, `castU32`, `castU64`, `castDouble`, `castVOIDP`, the `castCL*` family, etc.
+- Reach for a raw `reinterpret_cast` only when no macro fits (e.g. casting to a function-pointer alias).
+
+```cpp
+telemetry.power = castDouble(power);              // OK
+std::vector<T> buffer(castSize(count), T{});      // OK
+
+telemetry.power = static_cast<double>(power);     // NOK — use the macro
+```
+
+
+---
+
+## Comments
+
+- Trailing and member comments use plain `//`, **not** the Doxygen `//!<` marker.
+- Do not leave comments that merely restate the code; delete them.
+
+```cpp
+uint32_t coreClock{ 0u };   // Engine/GFX clock (MHz)    — OK
+uint32_t coreClock{ 0u };   //!< Engine/GFX clock (MHz)  — NOK
+```
+
+
+---
+
 ## Include
 
 - Use `<>` for all `#include` directives.
@@ -89,8 +159,25 @@ private:
 - Always use braces, even for single-line bodies.
 - Place the **constant/literal on the left** of the comparison (Yoda conditions).
 - Always use **explicit comparisons** (no implicit bool conversion).
+- Compare unsigned values against **unsigned literals** (`1u == container.size()`), not signed ones.
+- Do **not** mix a mutating action and its test in the same expression. Bind the result to a named variable first, then compare — keeps the side effect visible and the condition pure.
 - For multi-line conditions, align operators (`&&`, `||`) at the start of continuation lines.
 - Column limit is 120: prefer keeping the comparison on a single line and only wrapping function arguments.
+
+```cpp
+// NOK — the insert (action) and the .second test happen in one expression
+if (true == warnedBuses.insert(bus).second)
+{
+    // code
+}
+
+// OK — action first, then the check
+bool const firstWarning{ warnedBuses.insert(bus).second };
+if (true == firstWarning)
+{
+    // code
+}
+```
 
 ```cpp
 if (true == a)   // OK — explicit
