@@ -68,6 +68,9 @@ Enforced by `.clang-format` and `.clang-tidy`. See `CODING_STYLE.md` for the ful
 - **`auto`**: only in range-for loops or when the type is too complex to write out
 - **Init**: use `{}` rather than `=` for initialization
 - **2 blank lines** between function definitions
+- **Casts**: use the `cast*` macros from `common/cast.hpp` (`castU32`, `cast32`, `castSize`, `castDouble`…), not bare `static_cast`
+- **Enums**: `enum class X : uint8_t`; dispatch with an exhaustive `switch` (no `default:`) so `-Wswitch` catches new values — not `if`/`else if`
+- **Action vs. check**: never combine a mutating call and its test in one expression — bind the result, then compare
 
 ## Architecture Overview
 
