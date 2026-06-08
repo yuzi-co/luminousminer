@@ -71,6 +71,11 @@ stratum::Stratum* stratum::NewStratum(algo::ALGORITHM const algorithm)
             stratum = NEW(stratum::StratumBlake3);
             break;
         }
+        case algo::ALGORITHM::KHEAVYHASH:
+        {
+            stratum = NEW(stratum::StratumKHeavyHash);
+            break;
+        }
         case algo::ALGORITHM::UNKNOWN:
         {
             break;
