@@ -68,9 +68,10 @@ private:
 
 ## Enum
 
-- Always give an `enum class` an **explicit underlying type** (`uint8_t` unless a wider range is needed).
+- Always give an `enum class` an **explicit underlying type** (`uint8_t` unless a wider range is needed, e.g. `uint32_t` for protocol IDs).
 - Dispatch on an enum with `switch`, **not** an `if`/`else if` chain.
-- Handle **every** enumerator explicitly and do **not** add a `default:` case. An exhaustive `switch` with no `default` makes the compiler (`-Wswitch`) flag a newly added enumerator at every dispatch site — a `default` or an `if`/`else` chain silently swallows it.
+- For an enum whose value is produced **inside** the program (a closed set, like `Backend`), make the `switch` exhaustive and omit `default:`. The compiler (`-Wswitch`) then flags a newly added enumerator at every dispatch site — a `default` or an `if`/`else` chain silently swallows it.
+- Add a `default:` only when the value comes from **outside** the program and may be out of range — e.g. an enum cast from a network/JSON integer (`STRATUM_TYPE`, `ETHPROXY_ID`). There `default:` is the legitimate place to reject the unknown value.
 
 ```cpp
 enum class Backend : uint8_t
@@ -105,14 +106,19 @@ switch (backend)
 
 ## Casts
 
-- Use the `cast*` macros from `common/cast.hpp` instead of a bare `static_cast` / `reinterpret_cast` for value conversions: `castSize`, `cast32`, `castU32`, `castU64`, `castDouble`, `castVOIDP`, the `castCL*` family, etc.
-- Reach for a raw `reinterpret_cast` only when no macro fits (e.g. casting to a function-pointer alias).
+- Prefer the `cast*` macros from `common/cast.hpp` over a bare `static_cast` whenever a macro covers the target type: `castSize`, `cast32`, `castU32`, `castU64`, `castDouble`, `castVOIDP`, the `castCL*` family, etc.
+- A bare `static_cast` / `reinterpret_cast` is still correct when no macro fits: a template type parameter (`static_cast<T>`), a third-party type (`static_cast<boost::asio::ip::port_type>`), or a function-pointer alias.
+
+> Older code (e.g. `benchmark/config.cpp`) predates this and still uses bare
+> `static_cast` for covered types — migrate those opportunistically when you
+> touch them; don't bulk-rewrite.
 
 ```cpp
 telemetry.power = castDouble(power);              // OK
 std::vector<T> buffer(castSize(count), T{});      // OK
+auto port = static_cast<boost::asio::ip::port_type>(p); // OK — no macro for this type
 
-telemetry.power = static_cast<double>(power);     // NOK — use the macro
+telemetry.power = static_cast<double>(power);     // NOK — castDouble exists, use it
 ```
 
 
