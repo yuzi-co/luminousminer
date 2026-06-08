@@ -10,6 +10,7 @@
 #include <resolver/amd/evrprogpow.hpp>
 #include <resolver/amd/firopow.hpp>
 #include <resolver/amd/kawpow.hpp>
+#include <resolver/amd/kheavyhash.hpp>
 #include <resolver/amd/meowpow.hpp>
 #include <resolver/amd/progpow.hpp>
 #include <resolver/amd/progpow_quai.hpp>
@@ -333,6 +334,32 @@ void device::Device::setAlgorithm(algo::ALGORITHM newAlgorithm)
 #if defined(AMD_ENABLE)
                 case device::DEVICE_TYPE::AMD:
                 {
+                    break;
+                }
+#endif
+                case device::DEVICE_TYPE::UNKNOWN:
+                {
+                    break;
+                }
+            }
+            break;
+        }
+        case algo::ALGORITHM::KHEAVYHASH:
+        {
+            switch (deviceType)
+            {
+#if defined(AMD_ENABLE)
+                case device::DEVICE_TYPE::AMD:
+                {
+                    SAFE_DELETE(resolver);
+                    resolver = NEW(resolver::ResolverAmdKHeavyHash);
+                    break;
+                }
+#endif
+#if defined(CUDA_ENABLE)
+                case device::DEVICE_TYPE::NVIDIA:
+                {
+                    // CUDA kernel not implemented yet (OpenCL/AMD only).
                     break;
                 }
 #endif
