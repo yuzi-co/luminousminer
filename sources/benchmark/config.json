@@ -76,6 +76,13 @@
                 "threads": 256,
                 "blocks": 1024,
                 "kernels": ["lm1", "lm2", "lm3", "lm4"]
+            },
+            "kheavyhash": {
+                "enabled": false,
+                "loop": 20,
+                "threads": 256,
+                "blocks": 8192,
+                "kernels": ["search"]
             }
         }
     }
