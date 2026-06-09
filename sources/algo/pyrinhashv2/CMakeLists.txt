@@ -45,6 +45,26 @@ if(PYRINHASHV2_BUILD_TESTS)
     add_test(NAME pyrinhashv2_unit_test COMMAND pyrinhashv2_unit_test)
 endif()
 
+# OpenCL kernel KAT harness. Runs the .cl (with the shared blake3.cl concatenated ahead of
+# it) on any OpenCL device the ICD exposes (POCL/CPU in the dev image, a real GPU otherwise)
+# and asserts bit-identity with the CPU reference. Off by default so the pure-CPU build needs
+# no ICD.
+option(PYRINHASHV2_BUILD_OPENCL "Build the PyrinHashV2 OpenCL known-answer test suite" OFF)
+if(PYRINHASHV2_BUILD_OPENCL)
+    find_package(GTest REQUIRED)
+    find_package(OpenCL REQUIRED)
+    enable_testing()
+    add_executable(pyrinhashv2_opencl_test opencl/tests/opencl_kat_test.cpp)
+    target_include_directories(pyrinhashv2_opencl_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+    target_compile_definitions(pyrinhashv2_opencl_test
+        PRIVATE P2_CL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/opencl/pyrinhashv2.cl"
+                P2_BLAKE3_CL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../crypto/opencl/blake3.cl")
+    target_compile_options(pyrinhashv2_opencl_test PRIVATE -Wall -Wextra)
+    target_link_libraries(pyrinhashv2_opencl_test
+        PRIVATE pyrinhashv2_reference OpenCL::OpenCL GTest::gtest GTest::gtest_main)
+    add_test(NAME pyrinhashv2_opencl_test COMMAND pyrinhashv2_opencl_test)
+endif()
+
 else()
 
 # ============================================================================
@@ -67,6 +87,7 @@ if (BUILD_EXE_BENCHMARK)
     target_sources(${BENCH_EXE} PUBLIC ${HEADERS} ${SOURCES})
 endif()
 
+add_subdirectory(opencl)
 add_subdirectory(tests)
 
 set(SOURCES_ALGO_PYRINHASHV2 ${HEADERS} ${SOURCES} PARENT_SCOPE)
