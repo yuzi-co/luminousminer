@@ -53,6 +53,14 @@ std::string algo::toString(algo::ALGORITHM const algorithm)
         {
             return "blake3";
         }
+        case algo::ALGORITHM::FISHHASH:
+        {
+            return "fishhash";
+        }
+        case algo::ALGORITHM::FISHHASHPLUS:
+        {
+            return "fishhashplus";
+        }
         case algo::ALGORITHM::UNKNOWN:
         {
             return "unknown";
@@ -112,6 +120,14 @@ algo::ALGORITHM algo::toEnum(std::string const& algo)
     else if (algo == "blake3")
     {
         return algo::ALGORITHM::BLAKE3;
+    }
+    else if (algo == "fishhash")
+    {
+        return algo::ALGORITHM::FISHHASH;
+    }
+    else if (algo == "fishhashplus")
+    {
+        return algo::ALGORITHM::FISHHASHPLUS;
     }
 
     return algo::ALGORITHM::UNKNOWN;
