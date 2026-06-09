@@ -121,6 +121,7 @@ namespace benchmark
         bool runAmdProgpow();
         bool runAmdKHeavyHash();
         bool runAmdAutolykos();
+        bool runAmdXelisHashV3();
 #endif
     };
 }

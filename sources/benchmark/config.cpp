@@ -183,6 +183,8 @@ benchmark::Config benchmark::Config::makeDefault()
     cfg.amd.algorithms["kawpow"] = { true, { 1u, 256u, 1024u }, {} };
     cfg.amd.algorithms["kheavyhash"] = { true, { 20u, 256u, 8192u }, { { "kHeavyHash_lm0", { 20u, 256u, 8192u } } } };
     cfg.amd.algorithms["autolykos_v2"] = { true, { 10u, 64u, 0u }, {} };
+    // Memory-hard: a small grid (6144 nonces ~3.1 GiB scratchpad) stays under AMD's 4 GiB limit.
+    cfg.amd.algorithms["xelishashv3"] = { true, { 3u, 64u, 96u }, {} };
 
     return cfg;
 }
