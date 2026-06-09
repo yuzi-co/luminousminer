@@ -121,7 +121,8 @@
                     "octopus_lm3",
                     "octopus_lm4",
                     "octopus_lm5",
-                    "octopus_lm6"
+                    "octopus_lm6",
+                    "octopus_lm7"
                 ]
             }
         }
