@@ -1,3 +1,4 @@
+#include <random>
 #include <string>
 
 #include <algo/hash.hpp>
@@ -9,53 +10,67 @@
 #include <stratum/octopus.hpp>
 
 
+// HeroMiners-style Conflux pools assign NO extranonce: the login IS the subscribe and
+// the full 8-byte nonce space belongs to the miner. Pick a random non-zero start nonce
+// once per session so this rig searches its own region (and isValidJob's nonce != 0
+// check passes). The device advances from here each batch.
+void stratum::StratumOctopus::ensureStartNonce()
+{
+    if (0ull != jobInfo.startNonce)
+    {
+        return;
+    }
+    std::random_device                      rd{};
+    std::mt19937_64                         gen{ rd() };
+    std::uniform_int_distribution<uint64_t> dist{ 1ull, 0x00ffffffffffffffull };
+    // 32-align: the warp-cooperative search kernel groups 32 consecutive nonces that
+    // share one polynomial-coefficient vector (warp base = nonce / 32).
+    uint64_t const start{ (dist(gen) & ~0x1full) | 0x20ull };
+
+    jobInfo.startNonce = start;
+    jobInfo.nonce = start;
+    jobInfo.gapNonce = 0x1ull;
+}
+
+
+void stratum::StratumOctopus::miningSubscribe()
+{
+    // HeroMiners CFX: mining.subscribe params = [wallet.worker, password] IS the login
+    // (returns {result:true}; no extranonce, no separate authorize). Sending the default
+    // EthereumStratum [agent, protocol] is rejected with "Invalid address".
+    boost::json::object root;
+    root["id"] = stratum::Stratum::ID_MINING_SUBSCRIBE;
+    root["method"] = "mining.subscribe";
+    root["params"] = boost::json::array{ wallet + "." + workerName, password.empty() ? std::string{ "x" } : password };
+
+    send(root);
+}
+
+
 void stratum::StratumOctopus::onResponse(boost::json::object const& root)
 {
     auto const miningRequestID{ common::boostJsonGetNumber<uint32_t>(root.at("id")) };
 
     switch (miningRequestID)
     {
+        case stratum::Stratum::ID_MINING_AUTHORIZE:  // unused for CFX; kept for safety
         case stratum::Stratum::ID_MINING_SUBSCRIBE:
         {
-            if (false == root.contains("error") || true == root.at("error").is_null())
+            // HeroMiners CFX: subscribe with [wallet.worker, password] IS the login and
+            // replies {result:true} (no extranonce, no separate authorize). Mining notifies
+            // follow immediately. A non-error reply authenticates the worker.
+            bool const ok{ (false == root.contains("error") || true == root.at("error").is_null())
+                           && true == root.contains("result") && true == root.at("result").is_bool()
+                           && true == root.at("result").as_bool() };
+            if (true == ok)
             {
-                // EthereumStratum/1.0.0 subscribe reply: result = [[notify, id, proto], xn].
-                // The second element is the extranonce prefix that fixes the high nonce
-                // byte(s). Parse it defensively; always authorize on a non-error reply so a
-                // parse hiccup cannot leave the worker unauthenticated (pool rejects all).
-                if (true == root.contains("result") && true == root.at("result").is_array())
-                {
-                    boost::json::array const& result{ root.at("result").as_array() };
-                    if (result.size() >= 2u && true == result.at(1).is_string())
-                    {
-                        setExtraNonce(std::string{ result.at(1).as_string().c_str() });
-                    }
-                }
-                miningAuthorize();
+                authenticated = true;
+                ensureStartNonce();
+                logInfo() << "Successful login!";
             }
             else
             {
-                logErr() << "Subscribe failed : " << root;
-            }
-            break;
-        }
-        case stratum::Stratum::ID_MINING_AUTHORIZE:
-        {
-            if (false == root.contains("error") || true == root.at("error").is_null())
-            {
-                authenticated = root.at("result").as_bool();
-                if (true == authenticated)
-                {
-                    logInfo() << "Successful login!";
-                }
-                else
-                {
-                    logErr() << "Fail to login : " << root;
-                }
-            }
-            else
-            {
-                logErr() << "Authorize failed : " << root;
+                logErr() << "Subscribe/login failed : " << root;
             }
             break;
         }
@@ -113,8 +128,16 @@ void stratum::StratumOctopus::onMiningNotify(boost::json::object const& root)
     }
 
     ////////////////////////////////////////////////////////////////////////////
+    // CFX job ids are small decimals ("0", "1", ...); toHash256("0") is all-zero, which
+    // isValidJob treats as empty. jobID (the hash) is only used for logging/validation
+    // (shares match on jobIDStr), so fall back to the always-non-empty header hash.
     jobInfo.jobID = algo::toHash256(jobInfo.jobIDStr);
+    if (true == algo::isHashEmpty(jobInfo.jobID))
+    {
+        jobInfo.jobID = jobInfo.headerHash;
+    }
     jobInfo.epoch = castU32(algo::octopus::getEpoch(jobInfo.blockNumber));
+    ensureStartNonce();  // no extranonce on CFX; keep nonce != 0 for isValidJob
 
     ////////////////////////////////////////////////////////////////////////////
     updateJob();
