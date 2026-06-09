@@ -23,6 +23,7 @@ if (BUILD_EXE_BENCHMARK)
 endif()
 
 
+add_subdirectory(opencl)
 add_subdirectory(tests)
 
 set(SOURCES_ALGO_OCTOPUS ${HEADERS} ${SOURCES} PARENT_SCOPE)
