@@ -65,11 +65,13 @@ TEST_F(OctopusDagAmdTest, dagItemsMatchCpu)
     ASSERT_TRUE(generator.build(&properties.clDevice, &properties.clContext));
 
     uint32_t const parents{ algo::octopus::DAG_ITEM_PARENTS };
+    uint32_t const dagBase{ 0u };
     generator.clKernel.setArg(0u, dagBuf);
     generator.clKernel.setArg(1u, cacheBuf);
     generator.clKernel.setArg(2u, parents);
-    generator.clKernel.setArg(3u, numGenerate);
-    generator.clKernel.setArg(4u, numNodes);
+    generator.clKernel.setArg(3u, dagBase);
+    generator.clKernel.setArg(4u, numGenerate);
+    generator.clKernel.setArg(5u, numNodes);
 
     properties.clQueue.enqueueNDRangeKernel(generator.clKernel, cl::NullRange, cl::NDRange(numGenerate), cl::NullRange);
     properties.clQueue.finish();

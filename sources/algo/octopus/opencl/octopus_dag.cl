@@ -10,6 +10,11 @@
 // DAG_ITEM_PARENTS FNV passes + Keccak-512) but emits ONE 64-byte node per
 // work-item (the search reads nodes index*MIX_NODES+n), not ethash's 2-node
 // hash1024 packing. Verified bit-exact vs algo::octopus::calcDatasetItem.
+//
+// The full dataset is always >= 4 GiB (8.45 GiB now), exceeding the AMD 4 GiB
+// single-buffer limit, so it is split into chunks each built into its own
+// < 4 GiB buffer: this kernel writes one chunk, nodes [dag_base, dag_base+count),
+// to the chunk-local offset. dag_base = 0 / count = total builds a single buffer.
 inline
 void build_item_mix(
     __global uint4 const* const restrict cache,
@@ -29,18 +34,20 @@ void build_item_mix(
 
 __kernel
 void octopus_build_dag(
-    __global uint4* const restrict dag,
+    __global uint4* const restrict dag,             // chunk buffer (chunk-local indexing)
     __global uint4 const* const restrict cache,
     uint const dag_item_parent,
-    uint const dag_number_item,
+    uint const dag_base,                            // global index of this chunk's first node
+    uint const chunk_count,                         // number of nodes in this chunk
     uint const cache_number_item)
 {
     ////////////////////////////////////////////////////////////////////////////
-    uint const node_index = get_global_id(0) + get_global_id(1) * GROUP_SIZE;
-    if (node_index >= dag_number_item)
+    uint const local_index = get_global_id(0) + get_global_id(1) * GROUP_SIZE;
+    if (local_index >= chunk_count)
     {
         return;
     }
+    uint const node_index = dag_base + local_index;  // global node index (algorithm input)
 
     ////////////////////////////////////////////////////////////////////////////
     uint const cache_index = (node_index % cache_number_item) * 4u;
@@ -75,7 +82,7 @@ void octopus_build_dag(
     keccak_f1600(item);
 
     ////////////////////////////////////////////////////////////////////////////
-    uint const gap_index = node_index * 4u;
+    uint const gap_index = local_index * 4u;  // chunk-local write position
     __attribute__((opencl_unroll_hint))
     for (uint x = 0u; x < 4u; ++x)
     {

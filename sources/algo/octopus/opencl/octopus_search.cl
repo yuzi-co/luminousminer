@@ -15,6 +15,9 @@
 //   -> hashimoto (OCT_ACCESSES x MIX_NODES dataset reads, reads prebuilt DAG)
 //   -> Keccak-256(seed[64] || mix[32]) -> 256-bit hash compared big-endian to boundary.
 // DAG node j occupies dag[j*4 .. j*4+3] (4 uint4 = 64 bytes), matching octopus_dag.cl.
+// The >= 4 GiB dataset is split across up to 8 chunk buffers (each < 4 GiB); a node's
+// global index selects its chunk = nodeIndex / chunk_items. A single-buffer test binds
+// the same buffer to all 8 slots with chunk_items > total nodes (everything in chunk 0).
 // Correctness-first: every nonce recomputes the full d[OCT_N] polynomial (the
 // reference shares it across a 32-lane warp; that optimization is deferred).
 
@@ -246,13 +249,48 @@ ulong octopus_multi_eval(
 }
 
 
+// Select the chunk buffer holding a node's global index. chunk = nodeIndex / chunk_items.
+inline
+__global uint4 const* octopus_chunk(
+    __global uint4 const* const restrict b0,
+    __global uint4 const* const restrict b1,
+    __global uint4 const* const restrict b2,
+    __global uint4 const* const restrict b3,
+    __global uint4 const* const restrict b4,
+    __global uint4 const* const restrict b5,
+    __global uint4 const* const restrict b6,
+    __global uint4 const* const restrict b7,
+    uint const chunk)
+{
+    switch (chunk)
+    {
+        case 0u: return b0;
+        case 1u: return b1;
+        case 2u: return b2;
+        case 3u: return b3;
+        case 4u: return b4;
+        case 5u: return b5;
+        case 6u: return b6;
+        default: return b7;
+    }
+}
+
+
 __kernel
 void octopus_search(
-    __global uint4 const* const restrict dag,
+    __global uint4 const* const restrict dag0,  // dataset chunk buffers (each < 4 GiB)
+    __global uint4 const* const restrict dag1,
+    __global uint4 const* const restrict dag2,
+    __global uint4 const* const restrict dag3,
+    __global uint4 const* const restrict dag4,
+    __global uint4 const* const restrict dag5,
+    __global uint4 const* const restrict dag6,
+    __global uint4 const* const restrict dag7,
     __global t_result* const restrict result,
     __constant ulong const* const restrict header,
     ulong const start_nonce,
     uint const num_full_pages,
+    uint const chunk_items,                     // DAG nodes per chunk buffer
     ulong4 const boundary)
 {
     ulong const nonce = start_nonce + (ulong)(get_global_id(1) * GROUP_SIZE + get_global_id(0));
@@ -316,9 +354,13 @@ void octopus_search(
         uint const index = fnv1_u32(seedWord0 ^ i ^ result_v[i], mix[i]) % num_full_pages;
         for (uint n = 0u; n < OCT_MIX_NODES; ++n)
         {
-            uint const  nodeIndex = index * OCT_MIX_NODES + n;
-            uint const  base      = nodeIndex * 4u;
-            uint* const mixNode   = mix + n * OCT_NODE_WORDS;
+            uint const nodeIndex = index * OCT_MIX_NODES + n;
+            uint const chunk     = nodeIndex / chunk_items;
+            uint const off       = nodeIndex - chunk * chunk_items;
+            uint const base      = off * 4u;
+            __global uint4 const* const restrict dag =
+                octopus_chunk(dag0, dag1, dag2, dag3, dag4, dag5, dag6, dag7, chunk);
+            uint* const mixNode = mix + n * OCT_NODE_WORDS;
             __attribute__((opencl_unroll_hint))
             for (uint k = 0u; k < 4u; ++k)
             {
