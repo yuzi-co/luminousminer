@@ -37,6 +37,14 @@
 
 #define OCT_NUM_WARPS       (GROUP_SIZE / OCT_WARP)
 
+// Barrett reduction modulo OCT_MOD for inputs t < 2^41 (every modmul here: products of
+// two residues < MOD < 2^20 are < 2^40, and the largest sum a*w2pow+b*wpow+c < 2^41).
+// OCT_MU = floor(2^41 / OCT_MOD); q = floor(t*MU / 2^41) is exact to within -1, so a
+// single conditional subtraction lands in [0, MOD). Replaces the hardware 64-bit divide
+// that dominated the 32768-step Horner loop.
+#define OCT_BARRETT_SHIFT   41
+#define OCT_MU              2130438UL
+
 
 __constant ulong OCTOPUS_KECCAK_RC[24] =
 {
@@ -72,9 +80,22 @@ ulong octopus_swap_u64(ulong const x)
 ////////////////////////////////////////////////////////////////////////////////
 // Prime-field helpers (GF(OCT_MOD)).
 inline
+uint octopus_redumod(ulong const t)  // t < 2^41
+{
+    ulong const q = (t * OCT_MU) >> OCT_BARRETT_SHIFT;
+    ulong       r = t - q * (ulong)OCT_MOD;
+    if (r >= (ulong)OCT_MOD)
+    {
+        r -= (ulong)OCT_MOD;
+    }
+    return (uint)r;
+}
+
+
+inline
 uint octopus_mulmod(uint const a, uint const b)
 {
-    return (uint)(((ulong)a * (ulong)b) % OCT_MOD);
+    return octopus_redumod((ulong)a * (ulong)b);
 }
 
 
@@ -260,7 +281,7 @@ void octopus_search(
         {
             octopus_sip_round(v);
             ulong const lanes = (v[0] ^ v[1]) ^ (v[2] ^ v[3]);
-            d[i * OCT_WARP + lane] = (uint)((lanes & 0xffffffffUL) % OCT_MOD);
+            d[i * OCT_WARP + lane] = octopus_redumod(lanes & 0xffffffffUL);
         }
     }
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -276,7 +297,7 @@ void octopus_search(
         {
             c = octopus_remap_param(h);
             uint const lhs = octopus_mulmod(b, b);
-            uint const rhs = (uint)(((ulong)4u * (ulong)a * (ulong)c) % OCT_MOD);
+            uint const rhs = octopus_mulmod(octopus_mulmod(a, c), 4u);
             if (lhs != rhs)
             {
                 break;
@@ -306,12 +327,12 @@ void octopus_search(
     uint  result_v[OCT_DATA_PER_THREAD];
     for (uint i = 0u; i < OCT_DATA_PER_THREAD; ++i)
     {
-        uint const x = (uint)(((ulong)a * (ulong)w2pow + (ulong)b * (ulong)wpow + (ulong)c) % OCT_MOD);
+        uint const x = octopus_redumod((ulong)a * (ulong)w2pow + (ulong)b * (ulong)wpow + (ulong)c);
         uint       pv = 0u;
         __attribute__((opencl_unroll_hint(1)))
         for (uint j = OCT_N; j--;)
         {
-            pv = (uint)(((ulong)pv * (ulong)x + (ulong)d[j]) % OCT_MOD);
+            pv = octopus_redumod((ulong)pv * (ulong)x + (ulong)d[j]);
         }
         result_v[i] = pv;
         threadResult = threadResult * 0x01000193ul ^ (ulong)pv;
