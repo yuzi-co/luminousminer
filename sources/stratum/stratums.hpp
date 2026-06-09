@@ -17,6 +17,7 @@
 #include <stratum/progpow_z.hpp>
 #include <stratum/sha256.hpp>
 #include <stratum/smart_mining.hpp>
+#include <stratum/xelishashv3.hpp>
 
 
 namespace stratum

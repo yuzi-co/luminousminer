@@ -13,6 +13,7 @@
 #include <resolver/amd/meowpow.hpp>
 #include <resolver/amd/progpow.hpp>
 #include <resolver/amd/progpow_quai.hpp>
+#include <resolver/amd/xelishashv3.hpp>
 
 
 void device::Device::setResolverAmd(algo::ALGORITHM const algorithm)
@@ -88,6 +89,12 @@ void device::Device::setResolverAmd(algo::ALGORITHM const algorithm)
         {
             SAFE_DELETE(resolver);
             resolver = NEW(resolver::ResolverAmdKHeavyHash);
+            break;
+        }
+        case algo::ALGORITHM::XELISHASHV3:
+        {
+            SAFE_DELETE(resolver);
+            resolver = NEW(resolver::ResolverAmdXelisHashV3);
             break;
         }
         case algo::ALGORITHM::UNKNOWN:
