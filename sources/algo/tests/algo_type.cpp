@@ -25,10 +25,21 @@ TEST_F(AlgoTypeTest, stringToEnumSuccess)
     EXPECT_EQ(algo::toEnum("progpowz"), algo::ALGORITHM::PROGPOWZ);
     EXPECT_EQ(algo::toEnum("autolykosv2"), algo::ALGORITHM::AUTOLYKOS_V2);
     EXPECT_EQ(algo::toEnum("blake3"), algo::ALGORITHM::BLAKE3);
+    EXPECT_EQ(algo::toEnum("fishhash"), algo::ALGORITHM::FISHHASH);
+    EXPECT_EQ(algo::toEnum("fishhashplus"), algo::ALGORITHM::FISHHASHPLUS);
 
     EXPECT_EQ(algo::toEnum(""), algo::ALGORITHM::UNKNOWN);
     EXPECT_EQ(algo::toEnum("unknown"), algo::ALGORITHM::UNKNOWN);
     EXPECT_EQ(algo::toEnum("!![]{}@#"), algo::ALGORITHM::UNKNOWN);
+}
+
+
+TEST_F(AlgoTypeTest, fishHashRoundTrip)
+{
+    EXPECT_EQ(algo::toEnum("fishhash"), algo::ALGORITHM::FISHHASH);
+    EXPECT_EQ(algo::toString(algo::ALGORITHM::FISHHASH), "fishhash");
+    EXPECT_EQ(algo::toEnum("fishhashplus"), algo::ALGORITHM::FISHHASHPLUS);
+    EXPECT_EQ(algo::toString(algo::ALGORITHM::FISHHASHPLUS), "fishhashplus");
 }
 
 
