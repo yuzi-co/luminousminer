@@ -32,3 +32,6 @@ kaspa `miner --host=de.kaspa.herominers.com --port=1206 --algo="kheavyhash" --wa
 
 ## Mining Stratum X
 kawpow `miner --internal_loop=1000 --internal_kernel_count=10 --host=mining.stratumx.org --port=3335 --algo="kawpow" --wallet=YOUR_WALLET --workername="YOUR_WORKERNAME"`  
+
+## unMineable
+ironfish (fishhash) `miner --host=fishhash.unmineable.com --port=3333 --algo="fishhash" --wallet=ALIAS.WORKER --workername="YOUR_WORKERNAME"`  (alias mode: pass the combined `alias.worker` as --wallet; verified live ~25 MH/s on RX 9070 XT — see FISHHASH.md)  

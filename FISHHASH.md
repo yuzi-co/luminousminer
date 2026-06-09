@@ -1,7 +1,9 @@
 # FishHash (Iron Fish) — implementation notes
 
-Status: **working & live-verified** on AMD (OpenCL). 3 accepted shares, 0 rejected,
-~24–25 MH/s on RX 9070 XT vs `fishhash.unmineable.com:3333` (2026-06-09).
+Status: **working & live-verified** on AMD (OpenCL). Live accepted shares, 0 rejected,
+**~24–25 MH/s** on RX 9070 XT vs `fishhash.unmineable.com:3333` (2026-06-09). FishHash is
+**memory-bandwidth bound** (random lookups into the ~4.83 GB DAG), so ~25 MH/s is close to
+this card's ceiling — kernel tuning won't move it much.
 
 ## Algorithm
 
@@ -39,10 +41,22 @@ envelope `{id, method, body}`; `mining.subscribe → subscribed{clientId,xn}`,
 Run: `miner --algo fishhash --host fishhash.unmineable.com --port 3333
 --wallet <alias.worker> --workername <name> --devices_disable=<igpu>`
 
+**unmineable alias login (gotcha):** in alias mode the login is `<alias>.<worker>` and the
+miner sends `wallet` verbatim as the subscribe `publicAddress`. Pass the combined string as
+`--wallet`, e.g. `--wallet=4forward.lm-test` — passing `--wallet=4forward --workername=lm-test`
+sends `publicAddress="4forward"` alone and the pool rejects it ("Invalid address").
+
+## Test coverage
+
+- CPU reference KAT: `sources/algo/fishhash/tests/fishhash.cpp` (golden vectors + bootstrap).
+- On-GPU AMD resolver: `sources/resolver/amd/tests/fishhash.cpp`
+  (`ResolverFishhashAmdTest.findNonce`) — builds the DAG on the device, runs the integrity
+  check, compiles the kernels with the device compiler, finds the bootstrap winner (nonce 45).
+- Offline stratum protocol: `sources/stratum/tests/fishhash_protocol.cpp` (notify/set_target
+  left-pad / zero-xnonce guard / submitted callback).
+
 ## Follow-ups (not done here)
 
 - CUDA/NVIDIA resolver (mirror of the OpenCL path).
 - FishHashPlus / Karlsen (kernel index-derivation already `#ifdef`-guarded; final-hash
   wiring + stratum TBD).
-- A resolver-level gtest under `resolver/amd/tests/` (live test + POCL kernel tests
-  currently cover correctness).
