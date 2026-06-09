@@ -47,7 +47,10 @@ The LuminousMiner octopus CPU oracle (M1) MUST reproduce every value below.
 | 0     | 1 | aeb06e4738269d0d60ced2206d21ec5c331690342a54f5c37f1d8eef4abdaf94 |
 | 12345 | 1 | d8e2e19a7ab253fba2a9c085157dae170288d3e9853f7967e5f71363eeeb85e9 |
 
-## Still to capture (when M1.4 needs them)
-- Per-index dataset-item vectors: `octopus_calculate_dag_item` is `static` in `light.cc`;
-  expose it (drop `static inline` + add a prototype) and dump items at indices {0,1,1000,last} for epoch 0.
-- Additional epochs/headers as needed for broader coverage.
+## 6. Dataset items @ epoch 0 (64-byte nodes, via debug hook on octopus_calculate_dag_item)
+| index | node (64 bytes hex) |
+|---|---|
+| 0       | 22db2229cc516c46d2210086f1ab417e0bd1c3827c5ecc6af7d3a33f8dae332bab5aa31fc58e71cff27666e81bf418775e74839743ca9d410fdf514d009bcec2 |
+| 1       | e5263184c4985ca0570d1ebdf507049e427dc86c7e96485739c0960a2ce4e6eb386d5aa39471876225c23c5b69443f6d5db8120fe3204cedcfefd0347f69ec1d |
+| 1000    | 8e6094037ad186a0fde024e3ef505627e2aae8a6ffdcb8f2fd3b6a85b654db8fc3144afa2b98e5d8a45f94b0a3521cf04accaec4298b9274d4f0de7d802bed71 |
+| 1234567 | c0c58b2a628da8005001fced0e7556e20c0f06cdd1174f541c21a717ddf05dd3bfeb04455c50ac49a7bb4fb2f1c51f5c4fc1e85ff21e48a9717032cd617b6e69 |
