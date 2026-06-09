@@ -382,5 +382,11 @@ void benchmark::BenchmarkWorkflow::runAmd()
     {
         logErr() << "AMD kheavyhash failed";
     }
+
+    ///////////////////////////////////////////////////////////////////////////
+    if (false == runAmdXelisHashV3())
+    {
+        logErr() << "AMD xelishashv3 failed";
+    }
 }
 #endif
