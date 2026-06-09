@@ -23,8 +23,9 @@ namespace common
                 paramSubmit = params;
             }
 
-            // Object-form submit (e.g. Blake3/Alephium): the base logs "not implemented",
-            // so capture it here too for tests that submit object params.
+            // Object-form submit (e.g. Blake3/Alephium, or FishHash/Iron Fish named
+            // jobId+nonce params): the base logs "not implemented", so capture it here
+            // too for tests that submit object params.
             inline void miningSubmit(uint32_t const deviceID, boost::json::object const& params) final
             {
                 id = deviceID;
