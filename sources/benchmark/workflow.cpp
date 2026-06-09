@@ -382,5 +382,11 @@ void benchmark::BenchmarkWorkflow::runAmd()
     {
         logErr() << "AMD kheavyhash failed";
     }
+
+    ///////////////////////////////////////////////////////////////////////////
+    if (false == runAmdOctopus())
+    {
+        logErr() << "AMD octopus failed";
+    }
 }
 #endif

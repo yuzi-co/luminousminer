@@ -37,6 +37,11 @@
 #ifndef OCT_INTERLEAVE
 #define OCT_INTERLEAVE 16u
 #endif
+// Lets the benchmark build several variants (different switches) into distinctly named
+// kernels from this one source; production uses the default name.
+#ifndef OCT_KERNEL_NAME
+#define OCT_KERNEL_NAME octopus_search
+#endif
 
 #define OCT_MOD             1032193u
 #define OCT_N               1024u
@@ -275,7 +280,7 @@ __global uint4 const* octopus_chunk(
 
 
 __kernel
-void octopus_search(
+void OCT_KERNEL_NAME(
     __global uint4 const* const restrict dag00,  // dataset chunk buffers (each 1 GiB)
     __global uint4 const* const restrict dag01,
     __global uint4 const* const restrict dag02,

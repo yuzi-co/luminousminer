@@ -1,6 +1,7 @@
 set(OUT_COMMON ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel)
 
 file(MAKE_DIRECTORY ${OUT_COMMON})
+file(MAKE_DIRECTORY ${OUT_COMMON}/octopus)
 
 set(BENCHMARK_OPENCL_FILES
     common/init_array.cl
@@ -22,6 +23,12 @@ set(BENCHMARK_OPENCL_FILES
     kheavyhash/kHeavyHash_lm3.cl
     kheavyhash/kHeavyHash_lm4.cl
     kheavyhash/kHeavyHash_lm5.cl
+    octopus/octopus_lm1.cl
+    octopus/octopus_lm2.cl
+    octopus/octopus_lm3.cl
+    octopus/octopus_lm4.cl
+    octopus/octopus_lm5.cl
+    octopus/octopus_lm6.cl
 )
 
 foreach(FILE ${BENCHMARK_OPENCL_FILES})
@@ -54,4 +61,10 @@ add_custom_target(copy_benchmark_opencl ALL
     ${OUT_COMMON}/kheavyhash/kHeavyHash_lm3.cl
     ${OUT_COMMON}/kheavyhash/kHeavyHash_lm4.cl
     ${OUT_COMMON}/kheavyhash/kHeavyHash_lm5.cl
+    ${OUT_COMMON}/octopus/octopus_lm1.cl
+    ${OUT_COMMON}/octopus/octopus_lm2.cl
+    ${OUT_COMMON}/octopus/octopus_lm3.cl
+    ${OUT_COMMON}/octopus/octopus_lm4.cl
+    ${OUT_COMMON}/octopus/octopus_lm5.cl
+    ${OUT_COMMON}/octopus/octopus_lm6.cl
 )
