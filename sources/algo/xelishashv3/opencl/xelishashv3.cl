@@ -517,8 +517,8 @@ static void xv3_b3_chunk_cv(__global uchar const* data, uint chunkIdx, uint cvOu
 }
 
 
-// BLAKE3 of the whole scratchpad (531 full chunks) -> 32-byte root, written to out.
-static void xv3_stage4(__global uchar const* data, __global uchar* out)
+// BLAKE3 of the whole scratchpad (531 full chunks) -> 32-byte root, written to private out.
+static void xv3_stage4(__global uchar const* data, uchar* out)
 {
     uint const iv[8] = { B3_IV0, B3_IV1, B3_IV2, B3_IV3, B3_IV4, B3_IV5, B3_IV6, B3_IV7 };
     uint stack[16][8];
@@ -584,6 +584,16 @@ static void xv3_stage4(__global uchar const* data, __global uchar* out)
 }
 
 
+// Full XelisHash V3 of a 112-byte work blob into the given scratchpad slice -> hash[32].
+static void xv3_hash(uchar const input[112], __global ulong* scratch, uchar hash[32])
+{
+    __global uchar* scratchBytes = (__global uchar*)scratch;
+    xv3_stage1(input, scratchBytes);
+    xv3_stage3(scratch);
+    xv3_stage4(scratchBytes, hash);
+}
+
+
 // ───────────────────────── KAT entry point ─────────────────────────
 // One work-item computes one full XelisHash V3 into its own scratchpad slice.
 __kernel void xelis_kat(__global uchar const* in,      // 112 bytes
@@ -591,18 +601,92 @@ __kernel void xelis_kat(__global uchar const* in,      // 112 bytes
                         __global uchar*       out)       // 32 bytes
 {
     uint gid = (uint)get_global_id(0);
-    __global ulong* scratch = scratchAll + (size_t)gid * XV3_MEMSIZE;
-    __global uchar* scratchBytes = (__global uchar*)scratch;
-
     uchar input[112];
     for (int i = 0; i < 112; ++i)
     {
         input[i] = in[i];
     }
+    uchar h[32];
+    xv3_hash(input, scratchAll + (size_t)gid * XV3_MEMSIZE, h);
+    __global uchar* o = out + (size_t)gid * 32u;
+    for (int i = 0; i < 32; ++i)
+    {
+        o[i] = h[i];
+    }
+}
 
-    xv3_stage1(input, scratchBytes);
-    xv3_stage3(scratch);
-    xv3_stage4(scratchBytes, out + (size_t)gid * 32u);
+
+// ───────────────────────── mining search kernel ─────────────────────────
+// Result buffer shared with the host (mirrors algo::kheavyhash/blake3 Result). MAX_RESULT
+// is overridable by the host kernel generator (addDefine).
+#ifndef MAX_RESULT
+#define MAX_RESULT 4
+#endif
+
+typedef struct __attribute__((aligned(8)))
+{
+    uchar found;
+    uint  count;
+    ulong nonces[MAX_RESULT];
+} Result;
+
+
+static inline void xv3_publish(__global Result* result, ulong const nonce)
+{
+    uint const idx = atomic_inc(&result->count);
+    result->found = 1;
+    if (idx < MAX_RESULT)
+    {
+        result->nonces[idx] = nonce;
+    }
+}
+
+
+// Xelis difficulty check: the 32-byte hash is read BIG-ENDIAN as a U256 and must be <= target
+// (target = U256::MAX / difficulty, also big-endian). Compare MSB-first.
+static inline int xv3_meets_target(uchar const hash[32], __global uchar const* target)
+{
+    for (int i = 0; i < 32; ++i)
+    {
+        uchar h = hash[i], t = target[i];
+        if (h != t)
+        {
+            return h < t;
+        }
+    }
+    return 1;  // equal => accepted
+}
+
+
+// Real mining kernel: each work-item tries nonce = startNonce + global_id(0), written
+// big-endian at MinerWork offset 40, and publishes its nonce on pow <= target.
+__kernel void search(__global uchar const* baseInput,  // 112-byte MinerWork template
+                     __global uchar const* target,     // 32-byte big-endian target
+                     ulong const           startNonce,
+                     __global ulong*       scratchAll,  // XV3_MEMSIZE u64 per work-item
+                     __global Result*      result)
+{
+    uint const gid = (uint)get_global_id(0);
+    ulong const nonce = startNonce + (ulong)gid;
+
+    uchar input[112];
+    for (int i = 0; i < 112; ++i)
+    {
+        input[i] = baseInput[i];
+    }
+    // nonce -> bytes [40..48], big-endian
+    for (int i = 0; i < 8; ++i)
+    {
+        input[40 + i] = (uchar)(nonce >> (8 * (7 - i)));
+    }
+
+    uchar h[32];
+    xv3_hash(input, scratchAll + (size_t)gid * XV3_MEMSIZE, h);
+
+    if (xv3_meets_target(h, target))
+    {
+        xv3_publish(result, nonce);
+    }
 }
 
 #endif // LM_XELISHASHV3_CL

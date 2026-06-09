@@ -94,6 +94,56 @@ namespace
             clReleaseContext(context);
         }
 
+        struct GpuResult
+        {
+            uint8_t  found{ 0 };
+            uint32_t count{ 0 };
+            uint64_t nonces[4]{ 0, 0, 0, 0 };
+        } __attribute__((aligned(8)));
+
+        // Runs the mining `search` kernel over `globalSize` nonces from startNonce and returns
+        // the device-side Result (found flag + winning nonces).
+        GpuResult runSearch(uint8_t const* baseInput, uint8_t const* target, uint64_t startNonce, size_t globalSize)
+        {
+            cl_int err{ CL_SUCCESS };
+            cl_mem inBuf{ clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                         xelishashv3::INPUT_LEN, const_cast<uint8_t*>(baseInput), &err) };
+            clCheck(err, "buf base");
+            cl_mem tgtBuf{ clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                          32, const_cast<uint8_t*>(target), &err) };
+            clCheck(err, "buf target");
+            cl_mem scratchBuf{ clCreateBuffer(context, CL_MEM_READ_WRITE,
+                                              globalSize * xelishashv3::MEMSIZE_BYTES, nullptr, &err) };
+            clCheck(err, "buf scratch");
+            GpuResult zero{};
+            cl_mem resBuf{ clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
+                                          sizeof(GpuResult), &zero, &err) };
+            clCheck(err, "buf result");
+
+            cl_kernel k{ clCreateKernel(program, "search", &err) };
+            clCheck(err, "kernel search");
+            cl_ulong sn{ startNonce };
+            clCheck(clSetKernelArg(k, 0, sizeof(cl_mem), &inBuf), "s0");
+            clCheck(clSetKernelArg(k, 1, sizeof(cl_mem), &tgtBuf), "s1");
+            clCheck(clSetKernelArg(k, 2, sizeof(cl_ulong), &sn), "s2");
+            clCheck(clSetKernelArg(k, 3, sizeof(cl_mem), &scratchBuf), "s3");
+            clCheck(clSetKernelArg(k, 4, sizeof(cl_mem), &resBuf), "s4");
+
+            clCheck(clEnqueueNDRangeKernel(queue, k, 1, nullptr, &globalSize, nullptr, 0, nullptr, nullptr), "ndr");
+            clCheck(clFinish(queue), "finish");
+
+            GpuResult got{};
+            clCheck(clEnqueueReadBuffer(queue, resBuf, CL_TRUE, 0, sizeof(GpuResult), &got, 0, nullptr, nullptr),
+                    "read");
+
+            clReleaseKernel(k);
+            clReleaseMemObject(inBuf);
+            clReleaseMemObject(tgtBuf);
+            clReleaseMemObject(scratchBuf);
+            clReleaseMemObject(resBuf);
+            return got;
+        }
+
         // Runs one full XelisHash V3 on the device for `input` and returns the 32-byte digest.
         Hash256 runDevice(uint8_t const* input)
         {
@@ -155,4 +205,33 @@ TEST_F(XelisOpenClKat, VerifyInputMatchesCpuAndGold)
 
     EXPECT_EQ(gpu, cpu) << "GPU != CPU";
     EXPECT_EQ(0, std::memcmp(gpu.data(), xelishashv3::kat::VERIFY_EXPECTED.data(), 32)) << "GPU != gold";
+}
+
+
+// The search kernel writes nonce = startNonce + gid at offset 40 (big-endian) and accepts on
+// big-endian hash <= target. Feeding VERIFY_INPUT's own nonce as startNonce makes gid 0
+// reproduce VERIFY_EXPECTED; with target == that hash the share is exactly at the boundary
+// (accepted), and the published nonce must equal the embedded nonce.
+TEST_F(XelisOpenClKat, SearchFindsNonceAtTargetBoundary)
+{
+    uint64_t embeddedNonce{ 0 };
+    for (int i = 0; i < 8; ++i)
+    {
+        embeddedNonce = (embeddedNonce << 8) | xelishashv3::kat::VERIFY_INPUT[40 + i];  // big-endian
+    }
+
+    GpuResult const r{ runSearch(xelishashv3::kat::VERIFY_INPUT.data(),
+                                 xelishashv3::kat::VERIFY_EXPECTED.data(), embeddedNonce, 1) };
+    EXPECT_EQ(1u, r.found) << "search did not accept a hash equal to target";
+    ASSERT_GE(r.count, 1u);
+    EXPECT_EQ(embeddedNonce, r.nonces[0]) << "published nonce mismatch";
+}
+
+
+// An all-zero target is unreachable (no non-zero hash is <= 0), so nothing is published.
+TEST_F(XelisOpenClKat, SearchRejectsUnreachableTarget)
+{
+    uint8_t const zeroTarget[32]{};
+    GpuResult const r{ runSearch(xelishashv3::kat::VERIFY_INPUT.data(), zeroTarget, 0, 4) };
+    EXPECT_EQ(0u, r.found) << "search accepted against a zero target";
 }
