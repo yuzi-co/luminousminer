@@ -114,6 +114,13 @@
                 "enabled": false,
                 "loop": 10,
                 "kernels": ["autolykos_v2_search_lm0", "autolykos_v2_verify_lm0"]
+            },
+            "xelishashv3": {
+                "enabled": true,
+                "loop": 3,
+                "threads": 64,
+                "blocks": 96,
+                "kernels": ["divmod_full", "divmod_bit64", "divmod_fold64", "divmod_divlu"]
             }
         }
     }
