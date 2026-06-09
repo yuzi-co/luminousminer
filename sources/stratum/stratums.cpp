@@ -83,7 +83,7 @@ std::shared_ptr<stratum::Stratum> stratum::NewStratum(algo::ALGORITHM const algo
         }
         case algo::ALGORITHM::FISHHASHPLUS:
         {
-            // FishHashPlus (Karlsen) stratum is added with the FishHashPlus plan.
+            stratum = NEW_SHARED(stratum::StratumFishhashPlus);
             break;
         }
         case algo::ALGORITHM::UNKNOWN:

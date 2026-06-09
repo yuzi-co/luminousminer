@@ -42,6 +42,12 @@ namespace FishHash {
 	fishhash_context* get_context(bool full = false) noexcept;
 	void prebuild_dataset(fishhash_context*, uint32_t numThreads = 1) noexcept;
 	void hash(uint8_t * output, const fishhash_context * ctx, const uint8_t * header, uint64_t header_size) noexcept;
+
+	// KarlsenHashV2 (FishHashPlus, by Lolliedieb). Shares the SAME light cache / dataset as
+	// base FishHash; differs only in (1) the mix-group index derivation, (2) a 32-byte blake3
+	// seed zero-extended to hash512, and (3) a final blake3 over the 32-byte kernel result.
+	// Ported from karlsen-network/{fish-hash-plus,karlsen-miner}. header_size is 80.
+	void hash_karlsen(uint8_t * output, const fishhash_context * ctx, const uint8_t * header, uint64_t header_size) noexcept;
 }
 
 #ifdef __cplusplus

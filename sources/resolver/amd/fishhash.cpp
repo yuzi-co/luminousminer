@@ -254,6 +254,13 @@ bool resolver::ResolverAmdFishhash::buildSearch()
 
     kernelGenerator.addDefine("GROUP_SIZE", getMaxGroupSize());
 
+    // KarlsenHashV2 shares this kernel; the FISHHASH_PLUS path swaps the header layout,
+    // seed construction, index derivation and final hash (see fishhash_search.cl).
+    if (algo::ALGORITHM::FISHHASHPLUS == algorithm)
+    {
+        kernelGenerator.declareDefine("FISHHASH_PLUS");
+    }
+
     if (false == kernelGenerator.appendFile("kernel/fishhash/fishhash_search.cl"))
     {
         return false;
