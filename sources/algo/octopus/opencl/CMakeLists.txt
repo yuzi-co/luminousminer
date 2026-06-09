@@ -4,6 +4,7 @@ file(MAKE_DIRECTORY ${OUT_OCTOPUS})
 
 set(OCTOPUS_FILES
   octopus_dag.cl
+  octopus_search.cl
 )
 
 foreach(FILE ${OCTOPUS_FILES})
@@ -18,4 +19,5 @@ endforeach()
 add_custom_target(copy_octopus_opencl_files ALL
   DEPENDS
     ${OUT_OCTOPUS}/octopus_dag.cl
+    ${OUT_OCTOPUS}/octopus_search.cl
 )
