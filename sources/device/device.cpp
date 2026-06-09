@@ -15,6 +15,7 @@
 #include <resolver/amd/meowpow.hpp>
 #include <resolver/amd/progpow.hpp>
 #include <resolver/amd/progpow_quai.hpp>
+#include <resolver/amd/xelishashv3.hpp>
 #include <resolver/mocker.hpp>
 #include <resolver/nvidia/autolykos_v2.hpp>
 #include <resolver/nvidia/blake3.hpp>
@@ -365,6 +366,31 @@ void device::Device::setAlgorithm(algo::ALGORITHM newAlgorithm)
                 {
                     SAFE_DELETE(resolver);
                     resolver = NEW(resolver::ResolverNvidiaKHeavyHash);
+                    break;
+                }
+#endif
+                case device::DEVICE_TYPE::UNKNOWN:
+                {
+                    break;
+                }
+            }
+            break;
+        }
+        case algo::ALGORITHM::XELISHASHV3:
+        {
+            switch (deviceType)
+            {
+#if defined(AMD_ENABLE)
+                case device::DEVICE_TYPE::AMD:
+                {
+                    SAFE_DELETE(resolver);
+                    resolver = NEW(resolver::ResolverAmdXelisHashV3);
+                    break;
+                }
+#endif
+#if defined(CUDA_ENABLE)
+                case device::DEVICE_TYPE::NVIDIA:
+                {
                     break;
                 }
 #endif

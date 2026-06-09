@@ -66,28 +66,14 @@ endif()
 else()
 
 # ============================================================================
-# Integrated into the main miner build. The CPU reference compiles into the
-# miner (the AMD resolver derives stage-1 host-side / validates shares) and the
-# CPU known-answer tests fold into the main unit_test target.
+# Integrated into the main miner build. The AMD resolver hashes on the GPU and
+# only needs the headers (types/result, via the include path) plus the OpenCL
+# kernel deployed next to the binary at runtime — so the integrated build just
+# deploys the kernel. The CPU reference and the CPU/OpenCL KATs live in the
+# standalone oracle build above (run in CI), keeping the miner build minimal.
 # ============================================================================
-file(GLOB HEADERS "*.hpp")
-file(GLOB SOURCES "*.cpp")
-
-if (BUILD_EXE_MINER)
-    target_sources(${MINER_EXE} PUBLIC ${HEADERS} ${SOURCES})
-endif()
-
-if (BUILD_EXE_UNIT_TEST)
-    target_sources(${UNIT_TEST_EXE} PUBLIC ${HEADERS} ${SOURCES})
-endif()
-
-if (BUILD_EXE_BENCHMARK)
-    target_sources(${BENCH_EXE} PUBLIC ${HEADERS} ${SOURCES})
-endif()
-
 add_subdirectory(opencl)
-add_subdirectory(tests)
 
-set(SOURCES_ALGO_XELISHASHV3 ${HEADERS} ${SOURCES} PARENT_SCOPE)
+set(SOURCES_ALGO_XELISHASHV3 "" PARENT_SCOPE)
 
 endif()

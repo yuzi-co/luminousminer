@@ -57,6 +57,10 @@ std::string algo::toString(algo::ALGORITHM const algorithm)
         {
             return "kheavyhash";
         }
+        case algo::ALGORITHM::XELISHASHV3:
+        {
+            return "xelishashv3";
+        }
         case algo::ALGORITHM::UNKNOWN:
         {
             return "unknown";
@@ -120,6 +124,10 @@ algo::ALGORITHM algo::toEnum(std::string const& algo)
     else if (algo == "kheavyhash")
     {
         return algo::ALGORITHM::KHEAVYHASH;
+    }
+    else if (algo == "xelishashv3" || algo == "xelishash" || algo == "xel")
+    {
+        return algo::ALGORITHM::XELISHASHV3;
     }
 
     return algo::ALGORITHM::UNKNOWN;
