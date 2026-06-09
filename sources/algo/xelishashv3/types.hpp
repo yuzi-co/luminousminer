@@ -16,9 +16,9 @@ namespace xelishashv3
     // also how the upstream gold vectors were produced.
     constexpr size_t INPUT_LEN{ 112 };
     constexpr size_t HASH_SIZE{ 32 };
-    constexpr size_t MEMSIZE{ 531 * 128 };       // u64 words = 67968
+    constexpr size_t MEMSIZE{ 531 * 128 }; // u64 words = 67968
     constexpr size_t MEMSIZE_BYTES{ MEMSIZE * 8 };
-    constexpr size_t BUFSIZE{ MEMSIZE / 2 };     // 33984 — half-buffer word count
+    constexpr size_t BUFSIZE{ MEMSIZE / 2 }; // 33984 — half-buffer word count
     constexpr size_t ITERS{ 2 };
     constexpr size_t CHUNK_SIZE{ 32 };
     constexpr size_t CHUNKS{ 4 };
@@ -35,13 +35,21 @@ namespace xelishashv3
     {
         std::vector<uint64_t> words;
 
-        ScratchPad()
-            : words(MEMSIZE, 0u)
+        ScratchPad() : words(MEMSIZE, 0u)
         {
         }
 
-        uint64_t*      u64() { return words.data(); }
-        uint8_t*       bytes() { return reinterpret_cast<uint8_t*>(words.data()); }
-        uint8_t const* bytes() const { return reinterpret_cast<uint8_t const*>(words.data()); }
+        uint64_t* u64()
+        {
+            return words.data();
+        }
+        uint8_t* bytes()
+        {
+            return reinterpret_cast<uint8_t*>(words.data());
+        }
+        uint8_t const* bytes() const
+        {
+            return reinterpret_cast<uint8_t const*>(words.data());
+        }
     };
 }

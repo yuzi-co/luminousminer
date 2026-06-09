@@ -13,8 +13,8 @@ namespace
 
     inline uint32_t readLe32(uint8_t const* p)
     {
-        return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8)
-             | (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
+        return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) | (static_cast<uint32_t>(p[2]) << 16)
+               | (static_cast<uint32_t>(p[3]) << 24);
     }
 
 
@@ -59,7 +59,7 @@ namespace xelishashv3
         {
             state[4 + i] = readLe32(key + 4 * i);
         }
-        state[12] = 0u;  // 32-bit block counter
+        state[12] = 0u; // 32-bit block counter
         state[13] = readLe32(nonce + 0);
         state[14] = readLe32(nonce + 4);
         state[15] = readLe32(nonce + 8);
@@ -70,7 +70,7 @@ namespace xelishashv3
             uint32_t work[16];
             std::memcpy(work, state, sizeof(work));
 
-            for (int i{ 0 }; i < 4; ++i)  // 8 rounds = 4 double-rounds
+            for (int i{ 0 }; i < 4; ++i) // 8 rounds = 4 double-rounds
             {
                 quarterRound(work[0], work[4], work[8], work[12]);
                 quarterRound(work[1], work[5], work[9], work[13]);
@@ -82,7 +82,7 @@ namespace xelishashv3
                 quarterRound(work[3], work[4], work[9], work[14]);
             }
 
-            uint8_t  keystream[64];
+            uint8_t keystream[64];
             for (int i{ 0 }; i < 16; ++i)
             {
                 writeLe32(keystream + 4 * i, work[i] + state[i]);
@@ -91,7 +91,7 @@ namespace xelishashv3
             size_t const take{ (len - offset < 64) ? (len - offset) : 64 };
             std::memcpy(out + offset, keystream, take);
             offset += 64;
-            ++state[12];  // next block
+            ++state[12]; // next block
         }
     }
 }
