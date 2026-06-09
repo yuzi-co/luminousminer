@@ -35,7 +35,8 @@ sources/
     │   ├── autolykos.cpp            # 3 kernel variants
     │   └── ethash_light_cache.cpp   # 3 kernel variants
     ├── amd/
-    │   └── kawpow.cpp               # 4 OpenCL kernel variants
+    │   ├── kawpow.cpp               # 4 OpenCL kernel variants
+    │   └── kheavyhash.cpp           # 6 OpenCL kernel variants (lm0–lm5)
     └── cuda/
         ├── kernels.hpp              # Central CUDA kernel declarations
         ├── kawpow/                  # KAWPOW CUDA kernel sources
@@ -86,7 +87,8 @@ run()
     │   ├── runNvidiaAutolykosv2()
     │   └── runNvidiaKawpow()
     ├── runAmd()
-    │   └── runAmdKawpow()
+    │   ├── runAmdKawpow()
+    │   └── runAmdKHeavyHash()
     ├── display all dashboards
     └── writeReport() → benchmark.json
 ```
@@ -273,6 +275,7 @@ For each kawpow_lmN kernel:
 | Algorithm | Variants | Notes |
 |---|---|---|
 | KAWPOW | 4 (lm1–lm4) | LDS caching and sub-group strategies |
+| kHeavyHash | 6 (lm0–lm5) | ALU-bound; `v_dot4` matmul + keccak midstate ([study](reasearch_and_development/kheavyhash/amd.md)) |
 
 ---
 
@@ -369,3 +372,23 @@ Measured on 2026-03-16, 10 iterations per kernel, config: `sources/benchmark/con
 | lm9  | ~27.15 MH | |
 | lm10 | ~16.25 MH | 64 blocks only — warp parallelism, needs tuning |
 | lm11 | ~27.35 MH | |
+
+---
+
+## Reference Results — AMD Radeon RX 9070 XT (RDNA4 / gfx1201)
+
+200 iterations per kernel, steady-state median (first 40 ramp iterations dropped),
+idle GPU. All six kernels are gated bit-identical by the OpenCL KAT. See the
+[kHeavyHash AMD study](reasearch_and_development/kheavyhash/amd.md) for the full
+analysis.
+
+### kHeavyHash — 256 threads × 8192 blocks
+
+| Kernel          | Hashrate (steady) | vs baseline | Notes |
+|-----------------|-------------------|-------------|-------|
+| `kHeavyHash_lm0`| ~393 MH | 1.00× | reference (one work-item/nonce, matrix re-read) |
+| `kHeavyHash_lm1`| ~414 MH | 1.05× | matrix staged in LDS |
+| `kHeavyHash_lm2`| ~482 MH | 1.23× | + `v_dot4_u32_u8` matmul |
+| `kHeavyHash_lm3`| ~481 MH | 1.23× | + register-resident keccak — no gain |
+| `kHeavyHash_lm4`| **~573 MH** | **1.46×** | + powHash keccak midstate — **shipped** |
+| `kHeavyHash_lm5`| ~574 MH | 1.46× | + heavy keccak round-0 hoist — ties lm4 |
