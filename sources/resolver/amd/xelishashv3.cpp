@@ -129,6 +129,9 @@ bool resolver::ResolverAmdXelisHashV3::buildSearch()
     kernelGenerator.clear();
     kernelGenerator.setKernelName("search");
     kernelGenerator.addDefine("MAX_RESULT", algo::xelishashv3::MAX_RESULT);
+    // Stage-3 128/64 divmod implementation. v3 (native fold + base-2^32 division, no per-bit loop)
+    // benchmarked 1.65x over the bit-serial baseline on gfx1201 — stage 3 is divmod-ALU-bound.
+    kernelGenerator.addDefine("XV3_DIVMOD_IMPL", static_cast<uint32_t>(3));
 
     ////////////////////////////////////////////////////////////////////////////
     // The shared BLAKE3 primitive must precede the algorithm kernel (stage 1 & 4).
