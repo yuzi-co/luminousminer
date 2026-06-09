@@ -5,4 +5,5 @@
 #define OCT_COOP_D      0
 #define OCT_USE_BARRETT 0
 #define OCT_INTERLEAVE  1u
+#define OCT_LAZY_HORNER 0
 #include "kernel/octopus/octopus_search.cl"

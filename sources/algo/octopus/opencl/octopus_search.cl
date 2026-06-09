@@ -37,6 +37,13 @@
 #ifndef OCT_INTERLEAVE
 #define OCT_INTERLEAVE 16u
 #endif
+// OCT_LAZY_HORNER 1 = the Horner accumulator stays partially reduced in [0, 2*MOD); the
+//   per-step canonical conditional subtraction is dropped (it is the hottest instruction in
+//   the kernel — 32*1024 modmuls/nonce) and applied only once on store. 0 = canonical every
+//   step (the pre-lazy baseline).
+#ifndef OCT_LAZY_HORNER
+#define OCT_LAZY_HORNER 1
+#endif
 // Lets the benchmark build several variants (different switches) into distinctly named
 // kernels from this one source; production uses the default name.
 #ifndef OCT_KERNEL_NAME
@@ -109,6 +116,29 @@ uint octopus_redumod(ulong const t)  // t < 2^41
 #else
     return (uint)(t % OCT_MOD);
 #endif
+}
+
+
+// Lazy Barrett: r ≡ t (mod MOD) in [0, 2*MOD), without the canonical conditional subtraction.
+// Valid for t < 2^41 — the Horner accumulator is kept < 2*MOD, so pv*xs + dj < 2*MOD*MOD + MOD
+// ≈ 2.131e12 < 2^41 (2.199e12), still inside the shift-41 Barrett bound (verified bit-exact
+// over the KAT). Canonicalise once with octopus_final_reduce when leaving the loop.
+inline
+uint octopus_redumod_lazy(ulong const t)  // t < 2^41 -> [0, 2*MOD)
+{
+#if OCT_USE_BARRETT
+    ulong const q = (t * OCT_MU) >> OCT_BARRETT_SHIFT;
+    return (uint)(t - q * (ulong)OCT_MOD);
+#else
+    return (uint)(t % OCT_MOD);
+#endif
+}
+
+
+inline
+uint octopus_final_reduce(uint const r)  // [0, 2*MOD) -> [0, MOD)
+{
+    return (r >= OCT_MOD) ? (r - OCT_MOD) : r;
 }
 
 
@@ -246,6 +276,15 @@ __global uint4 const* octopus_chunk(
 }
 
 
+#if OCT_LAZY_HORNER
+#define OCT_HORNER_REDUCE(T) octopus_redumod_lazy(T)
+#define OCT_HORNER_STORE(P)  octopus_final_reduce(P)
+#else
+#define OCT_HORNER_REDUCE(T) octopus_redumod(T)
+#define OCT_HORNER_STORE(P)  (P)
+#endif
+
+
 // Interleaved Horner: OCT_INTERLEAVE independent evaluations share each d[j] read and
 // expose ILP. DPTR is the coefficient vector (LDS or private). Fills result_v[0..31];
 // advances wpow/w2pow exactly as the serial reference does.
@@ -269,12 +308,12 @@ __global uint4 const* octopus_chunk(
             uint const dj = (DPTR)[j];                                                            \
             __attribute__((opencl_unroll_hint)) for (uint k = 0u; k < OCT_INTERLEAVE; ++k)        \
             {                                                                                     \
-                pv[k] = octopus_redumod((ulong)pv[k] * (ulong)xs[k] + (ulong)dj);                 \
+                pv[k] = OCT_HORNER_REDUCE((ulong)pv[k] * (ulong)xs[k] + (ulong)dj);               \
             }                                                                                     \
         }                                                                                         \
         __attribute__((opencl_unroll_hint)) for (uint k = 0u; k < OCT_INTERLEAVE; ++k)            \
         {                                                                                         \
-            result_v[i0 + k] = pv[k];                                                             \
+            result_v[i0 + k] = OCT_HORNER_STORE(pv[k]);                                           \
         }                                                                                         \
     }
 

@@ -58,6 +58,7 @@ namespace
         uint32_t    groupSize;
         uint64_t    nonces;
         uint32_t    repeats;
+        uint32_t    lazy;
     };
 }
 
@@ -85,16 +86,21 @@ TEST_F(OctopusBenchAmdTest, sweep)
     constexpr uint64_t smallGrid{ 1ull << 15 };
 
     std::vector<Variant> const variants{
-        { "baseline: private-d, hw %  ", 0u, 0u, 1u, 64u, smallGrid, 2u },
-        { "  + barrett (private-d)     ", 0u, 1u, 1u, 64u, smallGrid, 2u },
-        { "  + coop LDS-d (hw %)       ", 1u, 0u, 1u, 128u, bigGrid, 4u },
-        { "  + coop + barrett (IL1)    ", 1u, 1u, 1u, 128u, bigGrid, 4u },
-        { "  + IL2                     ", 1u, 1u, 2u, 128u, bigGrid, 4u },
-        { "  + IL8                     ", 1u, 1u, 8u, 128u, bigGrid, 4u },
-        { "  + IL16                    ", 1u, 1u, 16u, 128u, bigGrid, 4u },
-        { "  IL8  gs64                 ", 1u, 1u, 8u, 64u, bigGrid, 4u },
-        { "  IL16 gs64                 ", 1u, 1u, 16u, 64u, bigGrid, 4u },
-        { "  IL8  gs256                ", 1u, 1u, 8u, 256u, bigGrid, 4u },
+        { "baseline: private-d, hw %  ", 0u, 0u, 1u, 64u, smallGrid, 2u, 0u },
+        { "  + barrett (private-d)     ", 0u, 1u, 1u, 64u, smallGrid, 2u, 0u },
+        { "  + coop LDS-d (hw %)       ", 1u, 0u, 1u, 128u, bigGrid, 4u, 0u },
+        { "  + coop + barrett (IL1)    ", 1u, 1u, 1u, 128u, bigGrid, 4u, 0u },
+        { "  + IL2                     ", 1u, 1u, 2u, 128u, bigGrid, 4u, 0u },
+        { "  + IL8                     ", 1u, 1u, 8u, 128u, bigGrid, 4u, 0u },
+        { "  + IL16  (prev production) ", 1u, 1u, 16u, 128u, bigGrid, 4u, 0u },
+        { "  IL8  gs64                 ", 1u, 1u, 8u, 64u, bigGrid, 4u, 0u },
+        { "  IL16 gs64                 ", 1u, 1u, 16u, 64u, bigGrid, 4u, 0u },
+        { "  IL8  gs256                ", 1u, 1u, 8u, 256u, bigGrid, 4u, 0u },
+        // Lazy Horner (drop per-step canonical conditional subtraction) — A/B vs the rows above.
+        { "  IL16 + LAZY gs128         ", 1u, 1u, 16u, 128u, bigGrid, 4u, 1u },
+        { "  IL16 + LAZY gs64          ", 1u, 1u, 16u, 64u, bigGrid, 4u, 1u },
+        { "  IL16 + LAZY gs256         ", 1u, 1u, 16u, 256u, bigGrid, 4u, 1u },
+        { "  IL8  + LAZY gs64          ", 1u, 1u, 8u, 64u, bigGrid, 4u, 1u },
     };
 
     ////////////////////////////////////////////////////////////////////////////
@@ -153,9 +159,9 @@ TEST_F(OctopusBenchAmdTest, sweep)
     } };
 
     std::cout << "\n  octopus_search variant sweep (RX 9070 XT, synthetic DAG -> compute-bound)\n";
-    std::cout << "  +-----------------------------+------+-----+----+-----+----------+---------+------+\n";
-    std::cout << "  | variant                     | coop | bar | IL |  GS |   MH/s   | speedup | bit  |\n";
-    std::cout << "  +-----------------------------+------+-----+----+-----+----------+---------+------+\n";
+    std::cout << "  +-----------------------------+------+-----+----+-----+----+----------+---------+------+\n";
+    std::cout << "  | variant                     | coop | bar | IL |  GS | lz |   MH/s   | speedup | bit  |\n";
+    std::cout << "  +-----------------------------+------+-----+----+-----+----+----------+---------+------+\n";
 
     double baselineMhs{ 0.0 };
     for (Variant const& v : variants)
@@ -166,6 +172,7 @@ TEST_F(OctopusBenchAmdTest, sweep)
         gen.addDefine("OCT_COOP_D", v.coop);
         gen.addDefine("OCT_USE_BARRETT", v.barrett);
         gen.addDefine("OCT_INTERLEAVE", v.interleave);
+        gen.addDefine("OCT_LAZY_HORNER", v.lazy);
         if (false == gen.appendFile("kernel/octopus/octopus_search.cl")
             || false == gen.build(&properties.clDevice, &properties.clContext))
         {
@@ -206,10 +213,10 @@ TEST_F(OctopusBenchAmdTest, sweep)
         }
 
         std::cout << "  | " << v.label << " |  " << v.coop << "   |  " << v.barrett << "  | " << std::setw(2)
-                  << v.interleave << " | " << std::setw(3) << v.groupSize << " | " << std::setw(8) << std::fixed
-                  << std::setprecision(2) << mhs << " | " << std::setw(6) << std::setprecision(1)
-                  << (mhs / baselineMhs) << "x | " << (bitOk ? " OK " : "BAD ") << " |\n";
+                  << v.interleave << " | " << std::setw(3) << v.groupSize << " |  " << v.lazy << " | "
+                  << std::setw(8) << std::fixed << std::setprecision(2) << mhs << " | " << std::setw(6)
+                  << std::setprecision(1) << (mhs / baselineMhs) << "x | " << (bitOk ? " OK " : "BAD ") << " |\n";
         EXPECT_TRUE(bitOk) << "variant '" << v.label << "' is not bit-exact";
     }
-    std::cout << "  +-----------------------------+------+-----+----+-----+----------+---------+------+\n\n";
+    std::cout << "  +-----------------------------+------+-----+----+-----+----+----------+---------+------+\n\n";
 }
