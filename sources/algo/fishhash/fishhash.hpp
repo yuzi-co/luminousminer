@@ -22,6 +22,12 @@ namespace algo
         constexpr uint64_t HEADER_SIZE{ 180ull };
         constexpr uint64_t RANDOMNESS_OFFSET{ 172ull }; // 8-byte big-endian nonce at [172..180]
 
+        // KarlsenHashV2 (FishHashPlus) header: 80 bytes =
+        //   prePowHash[32] || timestamp_le[8] || zero[32] || nonce_le[8]   (karlsen-miner PowB3Hash).
+        // The nonce is an 8-byte LITTLE-endian value at [72..80].
+        constexpr uint64_t HEADER_SIZE_PLUS{ 80ull };
+        constexpr uint64_t RANDOMNESS_OFFSET_PLUS{ 72ull };
+
         // Fixed seed (no epochs). Matches iron-fish/fish-hash cpp/FishHash.cpp.
         constexpr algo::hash256 SEED{ .ubytes = { 0xeb, 0x01, 0x63, 0xae, 0xf2, 0xab, 0x1c, 0x5a,
                                                   0x66, 0x31, 0x0c, 0x1c, 0x14, 0xd6, 0x0f, 0x42,
@@ -42,6 +48,11 @@ namespace algo
         // Iron Fish hash: blake3(header)->seed512; 32-access mix over dataset; blake3 final.
         // output: 32 bytes. header/headerSize: the 180-byte Iron Fish header.
         void hash(uint8_t* output, Context const* ctx, uint8_t const* header, uint64_t headerSize);
+
+        // KarlsenHashV2 (FishHashPlus): blake3(header)->32B seed (zero-extended); 32-access
+        // mix-group walk over the SAME dataset; blake3 over the 32-byte kernel result.
+        // output: 32 bytes. header/headerSize: the 80-byte Karlsen header.
+        void hashPlus(uint8_t* output, Context const* ctx, uint8_t const* header, uint64_t headerSize);
 
         // Accessors for GPU upload of the light cache (layout-compatible with algo::hash512).
         algo::hash512 const* lightCache(Context const* ctx);

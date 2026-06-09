@@ -6,8 +6,9 @@
 //   - out = blake3(seed[64] || mixHash[32]) (32 bytes)
 //   - record nonce when out <= boundary (32-byte big-endian compare)
 //
-// FISHHASHPLUS (Karlsen) index derivation is guarded behind FISHHASH_PLUS; its final
-// blake3 wiring is completed in the FishHashPlus plan. Base (Iron Fish) is the default.
+// KarlsenHashV2 (FISHHASH_PLUS) reuses the same DAG but differs in: an 80-byte header with a
+// little-endian nonce at [72..80], a 32-byte blake3 seed zero-extended to 64, the mix-group
+// index derivation, and a final blake3 over the 32-byte mixHash only. Base (Iron Fish) default.
 
 #include "kernel/crypto/blake3.cl"
 #include "kernel/crypto/fnv1.cl"
@@ -94,6 +95,25 @@ inline bool fishhash_bytes_lte(uchar const* const a, __global uchar const* const
 }
 
 
+// true if a <= b as 32-byte LITTLE-endian integers (KarlsenHashV2 / Kaspa target compare:
+// byte 31 is most significant). The stratum supplies the boundary little-endian.
+inline bool fishhash_bytes_lte_le(uchar const* const a, __global uchar const* const b)
+{
+    for (int i = 31; i >= 0; --i)
+    {
+        if (a[i] < b[i])
+        {
+            return true;
+        }
+        if (a[i] > b[i])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+
 __kernel
 void fishhash_search(
     __global uint4 const* const restrict dag0, // dataset chunk buffers (each < 4 GB)
@@ -120,6 +140,28 @@ void fishhash_search(
     size_t const thread_id = get_global_id(1) * GROUP_SIZE + get_global_id(0);
     ulong const  nonce = start_nonce + (ulong)thread_id;
 
+#ifdef FISHHASH_PLUS
+    // KarlsenHashV2 header: 80 bytes with the little-endian nonce at [72..80].
+    uchar h[80];
+    for (uint i = 0u; i < 80u; ++i)
+    {
+        h[i] = header[i];
+    }
+    __attribute__((opencl_unroll_hint))
+    for (uint i = 0u; i < 8u; ++i)
+    {
+        h[72u + i] = (uchar)(nonce >> (8u * i));
+    }
+
+    // seed = blake3(header) -> 32 bytes, zero-extended into 64 (upper half MUST be zero).
+    uchar seed[64];
+    __attribute__((opencl_unroll_hint))
+    for (uint i = 0u; i < 64u; ++i)
+    {
+        seed[i] = 0u;
+    }
+    blake3_hash_chunk(h, 80u, 32u, seed);
+#else
     // Local header copy with the big-endian nonce at [172..180].
     uchar h[180];
     for (uint i = 0u; i < 180u; ++i)
@@ -135,6 +177,7 @@ void fishhash_search(
     // seed = blake3(header) -> 64 bytes.
     uchar seed[64];
     blake3_hash_chunk(h, 180u, 64u, seed);
+#endif
 
     // mix(1024) = {seed512, seed512} as 32x uint32 (little-endian word view).
     uint mix[32];
@@ -192,6 +235,27 @@ void fishhash_search(
         }
     }
 
+#ifdef FISHHASH_PLUS
+    // Collapse mix(1024) -> mixHash(256). KarlsenHashV2 hashes ONLY the 32-byte mixHash
+    // (not seed || mixHash): fnv1 chain over each group of 4 words.
+    uchar finalData[32];
+    __attribute__((opencl_unroll_hint))
+    for (uint i = 0u; i < 8u; ++i)
+    {
+        uint const base = i * 4u;
+        uint const h1 = fnv1_u32(mix[base], mix[base + 1u]);
+        uint const h2 = fnv1_u32(h1, mix[base + 2u]);
+        uint const h3 = fnv1_u32(h2, mix[base + 3u]);
+        finalData[i * 4u + 0u] = (uchar)(h3);
+        finalData[i * 4u + 1u] = (uchar)(h3 >> 8);
+        finalData[i * 4u + 2u] = (uchar)(h3 >> 16);
+        finalData[i * 4u + 3u] = (uchar)(h3 >> 24);
+    }
+
+    // out = blake3(mixHash[32]).
+    uchar out[32];
+    blake3_hash_chunk(finalData, 32u, 32u, out);
+#else
     // Collapse mix(1024) -> mixHash(256): fnv1 chain over each group of 4 words.
     uchar finalData[96];
     __attribute__((opencl_unroll_hint))
@@ -215,6 +279,7 @@ void fishhash_search(
     // out = blake3(seed[64] || mixHash[32]).
     uchar out[32];
     blake3_hash_chunk(finalData, 96u, 32u, out);
+#endif
 
 #ifdef FISHHASH_DEBUG_HASH
     if (thread_id == 0u)
@@ -226,7 +291,11 @@ void fishhash_search(
     }
 #endif
 
+#ifdef FISHHASH_PLUS
+    if (fishhash_bytes_lte_le(out, boundary)) // Kaspa target is little-endian
+#else
     if (fishhash_bytes_lte(out, boundary))
+#endif
     {
         uint const slot = atomic_inc(&result->count);
         result->found = true;

@@ -53,6 +53,16 @@ void algo::fishhash::hash(
 }
 
 
+void algo::fishhash::hashPlus(
+    uint8_t*                       output,
+    algo::fishhash::Context const* ctx,
+    uint8_t const*                 header,
+    uint64_t                       headerSize)
+{
+    FishHash::hash_karlsen(output, native(ctx), header, headerSize);
+}
+
+
 algo::hash512 const* algo::fishhash::lightCache(algo::fishhash::Context const* ctx)
 {
     return reinterpret_cast<algo::hash512 const*>(native(ctx)->light_cache);

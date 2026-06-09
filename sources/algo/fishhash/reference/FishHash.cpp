@@ -203,6 +203,82 @@ namespace FishHash {
 		blake3_hasher_finalize(&hasher, output, 32);
 	}
 	
+	/*****************************
+
+	    KarlsenHashV2 (FishHashPlus)
+
+	******************************/
+
+	// FishHashPlus kernel: identical to fishhash_kernel above except the three fetch
+	// indexes are derived from XOR-folded mix groups (mixGroup[c] = xor of the 4 words of
+	// group c), and p2 mixes in the round counter i. Ported verbatim from
+	// karlsen-network/karlsen-miner (fishhash_cuda_kernel.cuh / karlsen_hasher.rs).
+	inline hash256 fishhashplus_kernel( const fishhash_context& ctx, const hash512& seed) noexcept {
+		const uint32_t index_limit = static_cast<uint32_t>(ctx.full_dataset_num_items);
+
+		hash1024 mix{seed, seed};
+
+		for (uint32_t i = 0; i < num_dataset_accesses; ++i) {
+
+			// Calculate new fetching indexes from XOR-folded mix groups.
+			uint32_t mixGroup[8];
+			for (uint32_t c = 0; c < 8; ++c) {
+				mixGroup[c] = mix.word32s[4 * c + 0] ^ mix.word32s[4 * c + 1]
+					    ^ mix.word32s[4 * c + 2] ^ mix.word32s[4 * c + 3];
+			}
+
+			const uint32_t p0 = (mixGroup[0] ^ mixGroup[3] ^ mixGroup[6]) % index_limit;
+			const uint32_t p1 = (mixGroup[1] ^ mixGroup[4] ^ mixGroup[7]) % index_limit;
+			const uint32_t p2 = (mixGroup[2] ^ mixGroup[5] ^ i) % index_limit;
+
+			hash1024 fetch0 = lookup(ctx, p0);
+			hash1024 fetch1 = lookup(ctx, p1);
+			hash1024 fetch2 = lookup(ctx, p2);
+
+			// Modify fetch1 and fetch2
+			for (size_t j = 0; j < 32; ++j) {
+				fetch1.word32s[j] = fnv1(mix.word32s[j], fetch1.word32s[j]);
+				fetch2.word32s[j] = mix.word32s[j] ^ fetch2.word32s[j];
+			}
+
+			// Final computation of new mix
+			for (size_t j = 0; j < 16; ++j)
+				mix.word64s[j] = fetch0.word64s[j] * fetch1.word64s[j] + fetch2.word64s[j];
+		}
+
+		// Collapse the result into 32 bytes
+		hash256 mix_hash;
+		static constexpr size_t num_words = sizeof(mix) / sizeof(uint32_t);
+		for (size_t i = 0; i < num_words; i += 4) {
+			const uint32_t h1 = fnv1(mix.word32s[i], mix.word32s[i + 1]);
+			const uint32_t h2 = fnv1(h1, mix.word32s[i + 2]);
+			const uint32_t h3 = fnv1(h2, mix.word32s[i + 3]);
+			mix_hash.word32s[i / 4] = h3;
+		}
+
+		return mix_hash;
+	}
+
+	void hash_karlsen(uint8_t * output, const fishhash_context * ctx, const uint8_t * header, uint64_t header_size) noexcept {
+		// Seed: blake3(header) finalized to 32 bytes, zero-extended into a 64-byte hash512
+		// (karlsen Hash512::from_hash / CUDA memset(0,64)+memcpy(32)). Upper half MUST be zero.
+		hash512 seed;
+		std::memset(seed.bytes, 0, sizeof(seed.bytes));
+
+		blake3_hasher hasher;
+		blake3_hasher_init(&hasher);
+		blake3_hasher_update(&hasher, header, header_size);
+		blake3_hasher_finalize(&hasher, seed.bytes, 32);
+
+		const hash256 mix_hash = fishhashplus_kernel(*ctx, seed);
+
+		// Final: blake3 over the 32-byte kernel result only (not seed || mix_hash).
+		if (!output) output = static_cast<uint8_t*>(std::calloc(1, 32));
+		blake3_hasher_init(&hasher);
+		blake3_hasher_update(&hasher, mix_hash.bytes, sizeof(mix_hash.bytes));
+		blake3_hasher_finalize(&hasher, output, 32);
+	}
+
 	inline hash512 bitwise_xor(const hash512& x, const hash512& y) noexcept {
 		hash512 z;
 		for (size_t i = 0; i < sizeof(z) / sizeof(z.word64s[0]); ++i)
