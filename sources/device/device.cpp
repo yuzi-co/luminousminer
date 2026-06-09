@@ -7,6 +7,7 @@
 #include <resolver/amd/autolykos_v2.hpp>
 #include <resolver/amd/etchash.hpp>
 #include <resolver/amd/ethash.hpp>
+#include <resolver/amd/fishhash.hpp>
 #include <resolver/amd/evrprogpow.hpp>
 #include <resolver/amd/firopow.hpp>
 #include <resolver/amd/kawpow.hpp>
@@ -337,6 +338,25 @@ void device::Device::setAlgorithm(algo::ALGORITHM newAlgorithm)
                 }
 #endif
                 case device::DEVICE_TYPE::UNKNOWN:
+                {
+                    break;
+                }
+            }
+            break;
+        }
+        case algo::ALGORITHM::FISHHASH:
+        {
+            switch (deviceType)
+            {
+#if defined(AMD_ENABLE)
+                case device::DEVICE_TYPE::AMD:
+                {
+                    SAFE_DELETE(resolver);
+                    resolver = NEW(resolver::ResolverAmdFishhash);
+                    break;
+                }
+#endif
+                default:
                 {
                     break;
                 }
