@@ -115,9 +115,10 @@ static inline int xv3_ge128(ulong ahi, ulong alo, ulong bhi, ulong blo)
 }
 
 
-// num / den and num % den for full 128-bit operands (binary long division).
-static inline void xv3_divmod128(ulong nhi, ulong nlo, ulong dhi, ulong dlo,
-                                  ulong* qhi, ulong* qlo, ulong* rhi, ulong* rlo)
+// Full 128/128 binary long division — num / den and num % den (the baseline). Always used for
+// a true 128-bit divisor (dhi != 0); the optimized variants below only specialize dhi == 0.
+static inline void xv3_divmod_full(ulong nhi, ulong nlo, ulong dhi, ulong dlo,
+                                   ulong* qhi, ulong* qlo, ulong* rhi, ulong* rlo)
 {
     ulong q_hi = 0UL, q_lo = 0UL, r_hi = 0UL, r_lo = 0UL;
     for (int i = 127; i >= 0; --i)
@@ -148,6 +149,143 @@ static inline void xv3_divmod128(ulong nhi, ulong nlo, ulong dhi, ulong dlo,
     *qlo = q_lo;
     *rhi = r_hi;
     *rlo = r_lo;
+}
+
+
+// ───────────── 128 / 64 divmod variants (dhi == 0, d != 0), benchmark-selectable ─────────────
+// Most stage-3 divisors (cases 0/10/12 and modpow) fit in 64 bits. With a 64-bit divisor the
+// remainder is always < d < 2^64, so the running remainder needs only one 64-bit register; the
+// one bit shifted out of it is tracked as an explicit carry (the true pre-subtract value is then
+// >= 2^64 > d, so a subtract is forced — and `r -= d` lands on the correct value mod 2^64).
+// XV3_DIVMOD_IMPL selects the implementation at build time; 0 keeps the original full path so
+// the deployed kernel is byte-for-byte unchanged unless the host overrides the define.
+#ifndef XV3_DIVMOD_IMPL
+#define XV3_DIVMOD_IMPL 0
+#endif
+
+#if XV3_DIVMOD_IMPL == 1
+// V1: bit-serial, single 64-bit remainder register (half the per-bit ALU of the full path).
+static inline void xv3_divmod_by64(ulong nhi, ulong nlo, ulong d, ulong* qhi, ulong* qlo, ulong* rlo)
+{
+    ulong q_hi = 0UL, q_lo = 0UL, r = 0UL;
+    for (int i = 127; i >= 0; --i)
+    {
+        ulong carry = r >> 63;
+        r = (r << 1) | ((i >= 64) ? ((nhi >> (i - 64)) & 1UL) : ((nlo >> i) & 1UL));
+        if (0UL != carry || r >= d)
+        {
+            r -= d;
+            if (i >= 64)
+            {
+                q_hi |= (1UL << (i - 64));
+            }
+            else
+            {
+                q_lo |= (1UL << i);
+            }
+        }
+    }
+    *qhi = q_hi;
+    *qlo = q_lo;
+    *rlo = r;
+}
+#endif
+
+#if XV3_DIVMOD_IMPL == 2
+// V2: peel the high word with one native u64 divide (q_hi = nhi / d, r0 = nhi % d < d), then a
+// 64-iteration serial tail over the low word — half the loop trips of V1.
+static inline void xv3_divmod_by64(ulong nhi, ulong nlo, ulong d, ulong* qhi, ulong* qlo, ulong* rlo)
+{
+    ulong q_lo = 0UL;
+    ulong r = nhi % d;
+    for (int i = 63; i >= 0; --i)
+    {
+        ulong carry = r >> 63;
+        r = (r << 1) | ((nlo >> i) & 1UL);
+        if (0UL != carry || r >= d)
+        {
+            r -= d;
+            q_lo |= (1UL << i);
+        }
+    }
+    *qhi = nhi / d;
+    *qlo = q_lo;
+    *rlo = r;
+}
+#endif
+
+#if XV3_DIVMOD_IMPL == 3
+// (u1:u0) / v with u1 < v (quotient fits in 64 bits), v != 0 — Hacker's Delight base-2^32
+// long division (Knuth Algorithm D, 2 limbs), no per-bit loop. *rem gets the remainder.
+static inline ulong xv3_udiv_128_by_64(ulong u1, ulong u0, ulong v, ulong* rem)
+{
+    ulong const b = 0x100000000UL; // 2^32
+    int   s = (int)clz(v);
+    v <<= s;
+    ulong vn1 = v >> 32;
+    ulong vn0 = v & 0xffffffffUL;
+    ulong un32 = (0 == s) ? u1 : ((u1 << s) | (u0 >> (64 - s)));
+    ulong un10 = u0 << s;
+    ulong un1 = un10 >> 32;
+    ulong un0 = un10 & 0xffffffffUL;
+
+    ulong q1 = un32 / vn1;
+    ulong rhat = un32 - q1 * vn1;
+    while (q1 >= b || q1 * vn0 > b * rhat + un1)
+    {
+        --q1;
+        rhat += vn1;
+        if (rhat >= b)
+        {
+            break;
+        }
+    }
+
+    ulong un21 = un32 * b + un1 - q1 * v;
+    ulong q0 = un21 / vn1;
+    rhat = un21 - q0 * vn1;
+    while (q0 >= b || q0 * vn0 > b * rhat + un0)
+    {
+        --q0;
+        rhat += vn1;
+        if (rhat >= b)
+        {
+            break;
+        }
+    }
+
+    *rem = (un21 * b + un0 - q0 * v) >> s;
+    return q1 * b + q0;
+}
+
+
+// V3: native fold + divlu tail — no per-bit loop at all.
+static inline void xv3_divmod_by64(ulong nhi, ulong nlo, ulong d, ulong* qhi, ulong* qlo, ulong* rlo)
+{
+    *qhi = nhi / d;
+    *qlo = xv3_udiv_128_by_64(nhi % d, nlo, d, rlo);
+}
+#endif
+
+
+// num / den and num % den. Dispatches to the 64-bit-divisor fast path when the divisor fits in
+// 64 bits (and the chosen variant provides one); otherwise the full 128-bit long division.
+static inline void xv3_divmod128(ulong nhi, ulong nlo, ulong dhi, ulong dlo,
+                                  ulong* qhi, ulong* qlo, ulong* rhi, ulong* rlo)
+{
+#if XV3_DIVMOD_IMPL == 0
+    xv3_divmod_full(nhi, nlo, dhi, dlo, qhi, qlo, rhi, rlo);
+#else
+    if (0UL == dhi && 0UL != dlo)
+    {
+        xv3_divmod_by64(nhi, nlo, dlo, qhi, qlo, rlo);
+        *rhi = 0UL;
+    }
+    else
+    {
+        xv3_divmod_full(nhi, nlo, dhi, dlo, qhi, qlo, rhi, rlo);
+    }
+#endif
 }
 
 
