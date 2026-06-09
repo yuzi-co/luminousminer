@@ -1,7 +1,7 @@
 #include <cmath>
 #include <cstring>
 
-#include <blake3.h>  // vendored official reference, via blake3_ref
+#include <blake3.h> // vendored official reference, via blake3_ref
 
 #include <algo/xelishashv3/aes.hpp>
 #include <algo/xelishashv3/chacha8.hpp>
@@ -90,7 +90,7 @@ namespace
         base %= mod;
         while (exp > 0u)
         {
-            if (exp & 1u)
+            if (0u != (exp & 1u))
             {
                 result = static_cast<uint64_t>((static_cast<__uint128_t>(result) * base) % mod);
             }
@@ -133,11 +133,11 @@ namespace xelishashv3
 {
     void stage1(uint8_t const input[INPUT_LEN], uint8_t* scratch)
     {
-        uint8_t key[CHUNK_SIZE * CHUNKS]{};  // 128 bytes, zero-padded
+        uint8_t key[CHUNK_SIZE * CHUNKS]{}; // 128 bytes, zero-padded
         uint8_t inputHash[HASH_SIZE];
-        uint8_t buffer[CHUNK_SIZE * 2];      // 64 bytes
+        uint8_t buffer[CHUNK_SIZE * 2]; // 64 bytes
         std::memcpy(key, input, INPUT_LEN);
-        blake3(input, INPUT_LEN, buffer);    // buffer[0..32] = BLAKE3(input)
+        blake3(input, INPUT_LEN, buffer); // buffer[0..32] = BLAKE3(input)
 
         size_t const chunkLen{ MEMSIZE_BYTES / CHUNKS };
         uint8_t*     t{ scratch };

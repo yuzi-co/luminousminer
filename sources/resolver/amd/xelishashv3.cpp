@@ -58,7 +58,7 @@ bool resolver::ResolverAmdXelisHashV3::updateMemory(stratum::StratumJobInfo cons
     parameters.scratchCache.free();
     parameters.resultCache.free();
 
-    if (false == parameters.headerCache.alloc(*clContext)
+    if (   false == parameters.headerCache.alloc(*clContext)
         || false == parameters.targetCache.alloc(*clContext)
         || false == parameters.scratchCache.alloc(*clContext)
         || false == parameters.resultCache.alloc(clQueue[currentIndexStream], *clContext))
@@ -89,7 +89,7 @@ bool resolver::ResolverAmdXelisHashV3::updateConstants(stratum::StratumJobInfo c
     }
     for (uint32_t i{ 0u }; i < 8u; ++i)
     {
-        blob[32u + i] = static_cast<uint8_t>(jobInfo.timestamp >> (8u * (7u - i)));  // big-endian
+        blob[32u + i] = static_cast<uint8_t>(jobInfo.timestamp >> (8u * (7u - i))); // big-endian
     }
     for (uint32_t i{ 0u }; i < 32u; ++i)
     {
@@ -164,11 +164,8 @@ bool resolver::ResolverAmdXelisHashV3::executeSync(stratum::StratumJobInfo const
     ////////////////////////////////////////////////////////////////////////////
     size_t const globalSize{ static_cast<size_t>(getBlocks()) * static_cast<size_t>(getThreads()) };
     size_t const localSize{ static_cast<size_t>(getThreads()) };
-    OPENCL_ER(clQueue[currentIndexStream]->enqueueNDRangeKernel(
-        clKernel,
-        cl::NullRange,
-        cl::NDRange(globalSize),
-        cl::NDRange(localSize)));
+    OPENCL_ER(clQueue[currentIndexStream]
+                  ->enqueueNDRangeKernel(clKernel, cl::NullRange, cl::NDRange(globalSize), cl::NDRange(localSize)));
     OPENCL_ER(clQueue[currentIndexStream]->finish());
 
     ////////////////////////////////////////////////////////////////////////////
