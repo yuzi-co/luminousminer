@@ -106,18 +106,18 @@ TEST_F(OctopusSearchAmdTest, searchMatchesCpu)
         algo::octopus::Result zero{};
         properties.clQueue.enqueueWriteBuffer(resultBuf, CL_TRUE, 0u, sizeof(zero), &zero);
 
-        // Single-buffer test: bind the same DAG to all 8 chunk slots and make
+        // Single-buffer test: bind the same DAG to all 16 chunk slots and make
         // chunk_items exceed the total node count so every node lands in chunk 0.
-        for (uint32_t i{ 0u }; i < 8u; ++i)
+        for (uint32_t i{ 0u }; i < 16u; ++i)
         {
             generator.clKernel.setArg(i, dagBuf);
         }
-        generator.clKernel.setArg(8u, resultBuf);
-        generator.clKernel.setArg(9u, headerBuf);
-        generator.clKernel.setArg(10u, startNonce);
-        generator.clKernel.setArg(11u, numFullPages);
-        generator.clKernel.setArg(12u, dagNodes);
-        generator.clKernel.setArg(13u, boundary);
+        generator.clKernel.setArg(16u, resultBuf);
+        generator.clKernel.setArg(17u, headerBuf);
+        generator.clKernel.setArg(18u, startNonce);
+        generator.clKernel.setArg(19u, numFullPages);
+        generator.clKernel.setArg(20u, dagNodes);
+        generator.clKernel.setArg(21u, boundary);
 
         properties.clQueue.enqueueNDRangeKernel(generator.clKernel, cl::NullRange, cl::NDRange(1u), cl::NullRange);
         properties.clQueue.finish();
