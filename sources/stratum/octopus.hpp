@@ -24,10 +24,12 @@ namespace stratum
         void onMiningSetDifficulty(boost::json::object const& root) final;
         void onMiningSetTarget(boost::json::object const& root) final;
         void onMiningSetExtraNonce(boost::json::object const& root) final;
+        void miningSubscribe() final;
 
         void miningSubmit(uint32_t const deviceId, boost::json::array const& params) final;
 
       protected:
         void setBoundary(std::string const& boundaryHex);
+        void ensureStartNonce();
     };
 }

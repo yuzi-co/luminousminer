@@ -62,7 +62,8 @@ struct ResolverOctopusAmdTest : public testing::Test
 // is a winner. Validates chunked DAG build, chunk selection, and boundary packing.
 TEST_F(ResolverOctopusAmdTest, buildDagAndFindNonce)
 {
-    uint64_t const targetNonce{ 0x0102030405060708ull };
+    // 32-aligned: the warp-cooperative search kernel requires a 32-aligned start nonce.
+    uint64_t const targetNonce{ 0x0102030405060700ull };
 
     // CPU oracle hash for the target nonce (epoch 0, full dataset).
     algo::octopus::LightCache const light{ algo::octopus::buildLightCache(0ull) };
