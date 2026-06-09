@@ -43,6 +43,26 @@ if(XELISHASHV3_BUILD_TESTS)
     add_test(NAME xelishashv3_unit_test COMMAND xelishashv3_unit_test)
 endif()
 
+# OpenCL kernel KAT harness. Runs the .cl (with the shared blake3.cl concatenated ahead of it)
+# on any OpenCL device the ICD exposes (POCL/CPU in the dev image, a real GPU otherwise) and
+# asserts bit-identity with the CPU reference + gold. Off by default so the pure-CPU build
+# needs no ICD.
+option(XELISHASHV3_BUILD_OPENCL "Build the XelisHash V3 OpenCL known-answer test suite" OFF)
+if(XELISHASHV3_BUILD_OPENCL)
+    find_package(GTest REQUIRED)
+    find_package(OpenCL REQUIRED)
+    enable_testing()
+    add_executable(xelishashv3_opencl_test opencl/tests/opencl_kat_test.cpp)
+    target_include_directories(xelishashv3_opencl_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+    target_compile_definitions(xelishashv3_opencl_test
+        PRIVATE XV3_CL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/opencl/xelishashv3.cl"
+                XV3_BLAKE3_CL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../crypto/opencl/blake3.cl")
+    target_compile_options(xelishashv3_opencl_test PRIVATE -Wall -Wextra)
+    target_link_libraries(xelishashv3_opencl_test
+        PRIVATE xelishashv3_reference OpenCL::OpenCL GTest::gtest GTest::gtest_main)
+    add_test(NAME xelishashv3_opencl_test COMMAND xelishashv3_opencl_test)
+endif()
+
 else()
 
 # ============================================================================
@@ -65,6 +85,7 @@ if (BUILD_EXE_BENCHMARK)
     target_sources(${BENCH_EXE} PUBLIC ${HEADERS} ${SOURCES})
 endif()
 
+add_subdirectory(opencl)
 add_subdirectory(tests)
 
 set(SOURCES_ALGO_XELISHASHV3 ${HEADERS} ${SOURCES} PARENT_SCOPE)
