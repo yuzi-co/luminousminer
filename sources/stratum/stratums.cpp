@@ -78,7 +78,7 @@ stratum::Stratum* stratum::NewStratum(algo::ALGORITHM const algorithm)
         }
         case algo::ALGORITHM::FISHHASHPLUS:
         {
-            // FishHashPlus (Karlsen) stratum is added with the FishHashPlus plan.
+            stratum = NEW(stratum::StratumFishhashPlus);
             break;
         }
         case algo::ALGORITHM::UNKNOWN:
