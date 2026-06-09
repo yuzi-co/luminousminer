@@ -180,7 +180,7 @@ benchmark::Config benchmark::Config::makeDefault()
     cfg.amd.enabled = true;
     cfg.amd.deviceIndex = 0u;
     cfg.amd.algorithms["kawpow"] = { true, { 1u, 256u, 1024u }, {} };
-    cfg.amd.algorithms["kheavyhash"] = { true, { 20u, 256u, 8192u }, { { "search", { 20u, 256u, 8192u } } } };
+    cfg.amd.algorithms["kheavyhash"] = { true, { 20u, 256u, 8192u }, { { "kHeavyHash_lm0", { 20u, 256u, 8192u } } } };
 
     return cfg;
 }
