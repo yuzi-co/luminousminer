@@ -9,8 +9,9 @@ namespace common
     {
         struct MockerStratum : public stratum::Stratum
         {
-            uint32_t           id{ 0u };
-            boost::json::array paramSubmit{};
+            uint32_t            id{ 0u };
+            boost::json::array  paramSubmit{};
+            boost::json::object paramSubmitObject{};
 
             inline void onResponse(boost::json::object const&) final
             {
@@ -20,6 +21,13 @@ namespace common
             {
                 id = deviceID;
                 paramSubmit = params;
+            }
+
+            // FishHash / Iron Fish submit named params (jobId, nonce) as a JSON object.
+            inline void miningSubmit(uint32_t const deviceID, boost::json::object const& params) final
+            {
+                id = deviceID;
+                paramSubmitObject = params;
             }
 
             inline void onMiningNotify(boost::json::object const&) final
