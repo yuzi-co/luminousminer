@@ -24,6 +24,8 @@ namespace algo
         constexpr uint32_t NTT_N{ 1u << NTT_NK };  // 1024
         constexpr uint32_t NTT_MOD{ 1032193u };
         constexpr uint32_t NTT_B{ 11u };
+        constexpr uint32_t WARP_SIZE{ 32u };
+        constexpr uint32_t DATA_PER_THREAD{ 1u << (NTT_NK - 5u) };  // 32
 
         constexpr uint64_t LIGHT_CACHE_INIT_SIZE{ 1ull << 24 };  // 16 MiB
         constexpr uint64_t LIGHT_CACHE_GROWTH{ 1ull << 16 };     // 64 KiB / epoch
