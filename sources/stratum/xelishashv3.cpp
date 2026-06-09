@@ -172,6 +172,20 @@ void stratum::StratumXelisHashV3::onMiningNotify(boost::json::object const& root
     algo::copyHash(jobInfo.jobID, jobInfo.headerHash);
 
     ////////////////////////////////////////////////////////////////////////////
+    // Seed a non-zero starting nonce (isValidJob() rejects nonce == 0) derived from the
+    // pool extranonce so reconnects/peers explore different ranges. The 8-byte search
+    // nonce at MinerWork offset 40 is independent of the extra_nonce field at [48..80].
+    if (0ull == jobInfo.startNonce)
+    {
+        uint64_t seed{ 0ull };
+        for (uint32_t i{ 0u }; i < 8u; ++i)
+        {
+            seed = (seed << 8) | jobInfo.xelisExtraNonce.ubytes[i];
+        }
+        jobInfo.startNonce = (0ull != seed) ? seed : 1ull;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
     // Restart the nonce sweep; not memory-hard per-job (no DAG/epoch), so pin epoch
     // to a constant: updateMemory (buffer alloc + kernel build) runs once, subsequent
     // jobs only re-run updateConstants (blob/target re-upload).
