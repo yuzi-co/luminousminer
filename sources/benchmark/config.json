@@ -109,6 +109,20 @@
                 "threads": 256,
                 "blocks": 8192,
                 "kernels": ["kHeavyHash_lm0", "kHeavyHash_lm1", "kHeavyHash_lm2", "kHeavyHash_lm3", "kHeavyHash_lm4", "kHeavyHash_lm5"]
+            },
+            "octopus": {
+                "enabled": true,
+                "loop": 8,
+                "threads": 128,
+                "blocks": 4096,
+                "kernels": [
+                    "octopus_lm1",
+                    "octopus_lm2",
+                    "octopus_lm3",
+                    "octopus_lm4",
+                    "octopus_lm5",
+                    "octopus_lm6"
+                ]
             }
         }
     }

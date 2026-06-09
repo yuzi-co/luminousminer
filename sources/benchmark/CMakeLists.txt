@@ -16,6 +16,7 @@ file(MAKE_DIRECTORY ${OUT_COMMON})
 
 set(BENCHMARK_FILES
     benchmark.py
+    config.json
 )
 
 foreach(FILE ${BENCHMARK_FILES})
@@ -30,6 +31,7 @@ endforeach()
 add_custom_target(copy_benchmark ALL
     DEPENDS
     ${OUT_COMMON}/benchmark.py
+    ${OUT_COMMON}/config.json
 )
 
 add_subdirectory(nvidia)
