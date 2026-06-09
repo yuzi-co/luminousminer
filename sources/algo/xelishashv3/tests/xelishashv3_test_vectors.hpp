@@ -12,6 +12,7 @@ namespace xelishashv3::kat
     // 112 zero bytes -> gold (C reference `gold`, Go TestZeroHash `expected`).
     inline constexpr std::array<uint8_t, 112> ZERO_INPUT{};
 
+    // clang-format off
     inline constexpr std::array<uint8_t, 32> ZERO_EXPECTED{
         105, 172, 103, 40,  94,  253, 92,  162, 42,  252, 5,   196, 236, 238, 91,  218,
         22,  157, 228, 233, 239, 8,   250, 57,  212, 166, 121, 132, 148, 205, 103, 163
@@ -32,4 +33,5 @@ namespace xelishashv3::kat
         242, 8,   176, 222, 203, 27,  104, 187, 22,  40,  68,  73,  79,  79,  65,  83,
         138, 101, 10,  116, 194, 41,  153, 21,  92,  163, 12,  206, 231, 156, 70,  83
     };
+    // clang-format on
 }

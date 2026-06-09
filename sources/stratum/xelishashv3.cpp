@@ -42,13 +42,13 @@ namespace
             out[i] = 0u;
         }
         uint64_t rem{ 0ull };
-        for (int bit{ 0 }; bit < 256; ++bit)  // numerator is 256 one-bits, MSB first
+        for (int bit{ 0 }; bit < 256; ++bit) // numerator is 256 one-bits, MSB first
         {
-            uint64_t const high{ rem >> 63 };  // bit shifted out by rem<<1
+            uint64_t const high{ rem >> 63 }; // bit shifted out by rem<<1
             rem = (rem << 1) | 1ull;
             if (0ull != high || rem >= diff)
             {
-                rem -= diff;  // u64 wrap is exact when high == 1 (true value is 2^64 + rem)
+                rem -= diff; // u64 wrap is exact when high == 1 (true value is 2^64 + rem)
                 out[bit >> 3] |= static_cast<uint8_t>(0x80u >> (bit & 7));
             }
         }

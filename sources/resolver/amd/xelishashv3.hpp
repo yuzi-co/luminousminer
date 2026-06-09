@@ -24,9 +24,9 @@ namespace resolver
         void submit(stratum::StratumSmartMining* const stratum) final;
 
       protected:
-        algo::xelishashv3::ResultShare                resultShare{};
-        resolver::amd::xelishashv3::KernelParameters  parameters{};
-        common::KernelGeneratorOpenCL                 kernelGenerator{};
+        algo::xelishashv3::ResultShare               resultShare{};
+        resolver::amd::xelishashv3::KernelParameters parameters{};
+        common::KernelGeneratorOpenCL                kernelGenerator{};
 
         bool buildSearch();
         bool getResultCache(std::string const& _jobId);
