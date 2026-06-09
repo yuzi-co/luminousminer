@@ -49,18 +49,38 @@ endif()
 # needs no ICD.
 option(XELISHASHV3_BUILD_OPENCL "Build the XelisHash V3 OpenCL known-answer test suite" OFF)
 if(XELISHASHV3_BUILD_OPENCL)
-    find_package(GTest REQUIRED)
     find_package(OpenCL REQUIRED)
     enable_testing()
-    add_executable(xelishashv3_opencl_test opencl/tests/opencl_kat_test.cpp)
-    target_include_directories(xelishashv3_opencl_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
-    target_compile_definitions(xelishashv3_opencl_test
+
+    # The KAT harness needs GoogleTest; the benchmark below does not (plain main + printf), so it
+    # can cross-compile on a toolchain without GTest. Build the KAT only when GTest is present.
+    find_package(GTest QUIET)
+    if(GTest_FOUND)
+        add_executable(xelishashv3_opencl_test opencl/tests/opencl_kat_test.cpp)
+        target_include_directories(xelishashv3_opencl_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+        target_compile_definitions(xelishashv3_opencl_test
+            PRIVATE XV3_CL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/opencl/xelishashv3.cl"
+                    XV3_BLAKE3_CL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../crypto/opencl/blake3.cl")
+        target_compile_options(xelishashv3_opencl_test PRIVATE -Wall -Wextra)
+        target_link_libraries(xelishashv3_opencl_test
+            PRIVATE xelishashv3_reference OpenCL::OpenCL GTest::gtest GTest::gtest_main)
+        add_test(NAME xelishashv3_opencl_test COMMAND xelishashv3_opencl_test)
+    else()
+        message(STATUS "GTest not found: skipping xelishashv3_opencl_test (KAT); building bench only")
+    endif()
+
+    # Head-to-head benchmark of the stage-3 128/64 divmod variants (XV3_DIVMOD_IMPL=0..3).
+    # Not a ctest: it measures throughput on a real device and prints a table; run by hand.
+    # Header-only deps (gold vectors + types); compares GPU digests against the upstream gold
+    # vectors, so it needs no CPU reference (and avoids __int128 compiler-rt builtins on clang-cl).
+    add_executable(xelishashv3_opencl_bench opencl/tests/opencl_divmod_bench.cpp)
+    target_include_directories(xelishashv3_opencl_bench
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+    target_compile_definitions(xelishashv3_opencl_bench
         PRIVATE XV3_CL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/opencl/xelishashv3.cl"
                 XV3_BLAKE3_CL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../crypto/opencl/blake3.cl")
-    target_compile_options(xelishashv3_opencl_test PRIVATE -Wall -Wextra)
-    target_link_libraries(xelishashv3_opencl_test
-        PRIVATE xelishashv3_reference OpenCL::OpenCL GTest::gtest GTest::gtest_main)
-    add_test(NAME xelishashv3_opencl_test COMMAND xelishashv3_opencl_test)
+    target_compile_options(xelishashv3_opencl_bench PRIVATE -Wall -Wextra)
+    target_link_libraries(xelishashv3_opencl_bench PRIVATE OpenCL::OpenCL)
 endif()
 
 else()
