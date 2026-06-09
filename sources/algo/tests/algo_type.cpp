@@ -25,6 +25,7 @@ TEST_F(AlgoTypeTest, stringToEnumSuccess)
     EXPECT_EQ(algo::toEnum("progpowz"), algo::ALGORITHM::PROGPOWZ);
     EXPECT_EQ(algo::toEnum("autolykosv2"), algo::ALGORITHM::AUTOLYKOS_V2);
     EXPECT_EQ(algo::toEnum("blake3"), algo::ALGORITHM::BLAKE3);
+    EXPECT_EQ(algo::toEnum("octopus"), algo::ALGORITHM::OCTOPUS);
 
     EXPECT_EQ(algo::toEnum(""), algo::ALGORITHM::UNKNOWN);
     EXPECT_EQ(algo::toEnum("unknown"), algo::ALGORITHM::UNKNOWN);
@@ -47,4 +48,12 @@ TEST_F(AlgoTypeTest, stringToEnumFail)
     EXPECT_NE(algo::toEnum("autolykosv2"), algo::ALGORITHM::EVRPROGPOW);
     EXPECT_NE(algo::toEnum("sha256"), algo::ALGORITHM::AUTOLYKOS_V2);
     EXPECT_NE(algo::toEnum("autolykosv2"), algo::ALGORITHM::BLAKE3);
+    EXPECT_NE(algo::toEnum("octopus"), algo::ALGORITHM::BLAKE3);
+}
+
+
+TEST_F(AlgoTypeTest, octopusRoundTrip)
+{
+    EXPECT_EQ(algo::toString(algo::ALGORITHM::OCTOPUS), "octopus");
+    EXPECT_EQ(algo::toEnum("octopus"), algo::ALGORITHM::OCTOPUS);
 }
