@@ -13,6 +13,7 @@
 #include <resolver/amd/kawpow.hpp>
 #include <resolver/amd/kheavyhash.hpp>
 #include <resolver/amd/meowpow.hpp>
+#include <resolver/amd/octopus.hpp>
 #include <resolver/amd/progpow.hpp>
 #include <resolver/amd/progpow_quai.hpp>
 #include <resolver/mocker.hpp>
@@ -365,6 +366,25 @@ void device::Device::setAlgorithm(algo::ALGORITHM newAlgorithm)
                 {
                     SAFE_DELETE(resolver);
                     resolver = NEW(resolver::ResolverNvidiaKHeavyHash);
+                    break;
+                }
+#endif
+                case device::DEVICE_TYPE::UNKNOWN:
+                {
+                    break;
+                }
+            }
+            break;
+        }
+        case algo::ALGORITHM::OCTOPUS:
+        {
+            switch (deviceType)
+            {
+#if defined(AMD_ENABLE)
+                case device::DEVICE_TYPE::AMD:
+                {
+                    SAFE_DELETE(resolver);
+                    resolver = NEW(resolver::ResolverAmdOctopus);
                     break;
                 }
 #endif
