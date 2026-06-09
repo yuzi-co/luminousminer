@@ -14,16 +14,29 @@
 //   -> hashimoto (OCT_ACCESSES x MIX_NODES dataset reads, reads prebuilt DAG)
 //   -> Keccak-256(seed[64] || mix[32]) -> 256-bit hash compared big-endian to boundary.
 //
-// Warp-cooperative: a 32-lane subgroup shares one polynomial-coefficient vector d[OCT_N]
-// in LDS (computed once per 32 consecutive nonces, as in the reference miner), instead of
-// each work-item recomputing a 4 KB d[] in private memory that spills to scratch and turns
-// the 32768-step Horner loop into 32768 global reads. start_nonce must be 32-aligned so the
-// 32 lanes of a subgroup share the same nonce/32 (warp base); lane = nonce % 32.
+// Three compile-time optimization switches (all ON by default; the benchmark sweep flips
+// them to produce baselines):
+//   OCT_COOP_D    1 = a 32-lane subgroup shares one d[OCT_N] in LDS (computed once per 32
+//                     nonces); 0 = each work-item builds its own d[OCT_N] in private memory
+//                     (spills to scratch -> the original slow baseline).
+//   OCT_USE_BARRETT 1 = Barrett reduction for GF(MOD); 0 = hardware 64-bit `% MOD` divide.
+//   OCT_INTERLEAVE  number of independent polynomial evaluations run together in the Horner
+//                   inner loop (ILP + one d[j] read per group); 1 = no interleave.
 //
-// DAG node j occupies dag[j*4 .. j*4+3] (4 uint4 = 64 bytes), matching octopus_dag.cl.
-// The >= 4 GiB dataset is split across up to 16 chunk buffers (each 1 GiB, under the AMD
-// ~2 GiB signed buffer-addressing limit); chunk = nodeIndex / chunk_items. A single-buffer
-// test binds the same buffer to all 16 slots with chunk_items > total nodes (all in chunk 0).
+// start_nonce must be 32-aligned so the 32 lanes of a subgroup share a warp base
+// (nonce / 32); lane = nonce % 32. DAG node j occupies dag[j*4 .. j*4+3]. The >= 4 GiB
+// dataset is split across up to 16 chunk buffers (each 1 GiB, under the AMD ~2 GiB signed
+// buffer-addressing limit); chunk = nodeIndex / chunk_items.
+
+#ifndef OCT_COOP_D
+#define OCT_COOP_D 1
+#endif
+#ifndef OCT_USE_BARRETT
+#define OCT_USE_BARRETT 1
+#endif
+#ifndef OCT_INTERLEAVE
+#define OCT_INTERLEAVE 16u
+#endif
 
 #define OCT_MOD             1032193u
 #define OCT_N               1024u
@@ -37,11 +50,9 @@
 
 #define OCT_NUM_WARPS       (GROUP_SIZE / OCT_WARP)
 
-// Barrett reduction modulo OCT_MOD for inputs t < 2^41 (every modmul here: products of
-// two residues < MOD < 2^20 are < 2^40, and the largest sum a*w2pow+b*wpow+c < 2^41).
-// OCT_MU = floor(2^41 / OCT_MOD); q = floor(t*MU / 2^41) is exact to within -1, so a
-// single conditional subtraction lands in [0, MOD). Replaces the hardware 64-bit divide
-// that dominated the 32768-step Horner loop.
+// Barrett: OCT_MU = floor(2^41 / OCT_MOD). For t < 2^41 (products of two residues are
+// < 2^40; the largest sum a*w2pow+b*wpow+c < 2^41) q = (t*MU) >> 41 is exact to within -1,
+// so one conditional subtraction lands in [0, MOD).
 #define OCT_BARRETT_SHIFT   41
 #define OCT_MU              2130438UL
 
@@ -82,6 +93,7 @@ ulong octopus_swap_u64(ulong const x)
 inline
 uint octopus_redumod(ulong const t)  // t < 2^41
 {
+#if OCT_USE_BARRETT
     ulong const q = (t * OCT_MU) >> OCT_BARRETT_SHIFT;
     ulong       r = t - q * (ulong)OCT_MOD;
     if (r >= (ulong)OCT_MOD)
@@ -89,6 +101,9 @@ uint octopus_redumod(ulong const t)  // t < 2^41
         r -= (ulong)OCT_MOD;
     }
     return (uint)r;
+#else
+    return (uint)(t % OCT_MOD);
+#endif
 }
 
 
@@ -226,6 +241,39 @@ __global uint4 const* octopus_chunk(
 }
 
 
+// Interleaved Horner: OCT_INTERLEAVE independent evaluations share each d[j] read and
+// expose ILP. DPTR is the coefficient vector (LDS or private). Fills result_v[0..31];
+// advances wpow/w2pow exactly as the serial reference does.
+#define OCTOPUS_MULTI_EVAL(DPTR)                                                                   \
+    for (uint i0 = 0u; i0 < OCT_DATA_PER_THREAD; i0 += OCT_INTERLEAVE)                             \
+    {                                                                                             \
+        uint xs[OCT_INTERLEAVE];                                                                  \
+        uint pv[OCT_INTERLEAVE];                                                                  \
+        __attribute__((opencl_unroll_hint)) for (uint k = 0u; k < OCT_INTERLEAVE; ++k)            \
+        {                                                                                         \
+            xs[k] = octopus_redumod((ulong)a * (ulong)w2pow + (ulong)b * (ulong)wpow + (ulong)c); \
+            pv[k] = 0u;                                                                           \
+            if (i0 + k + 1u < OCT_DATA_PER_THREAD)                                                \
+            {                                                                                     \
+                wpow  = octopus_mulmod(wpow, fullWpow);                                            \
+                w2pow = octopus_mulmod(w2pow, fullW2pow);                                          \
+            }                                                                                     \
+        }                                                                                         \
+        __attribute__((opencl_unroll_hint(1))) for (uint j = OCT_N; j--;)                         \
+        {                                                                                         \
+            uint const dj = (DPTR)[j];                                                            \
+            __attribute__((opencl_unroll_hint)) for (uint k = 0u; k < OCT_INTERLEAVE; ++k)        \
+            {                                                                                     \
+                pv[k] = octopus_redumod((ulong)pv[k] * (ulong)xs[k] + (ulong)dj);                 \
+            }                                                                                     \
+        }                                                                                         \
+        __attribute__((opencl_unroll_hint)) for (uint k = 0u; k < OCT_INTERLEAVE; ++k)            \
+        {                                                                                         \
+            result_v[i0 + k] = pv[k];                                                             \
+        }                                                                                         \
+    }
+
+
 __kernel
 void octopus_search(
     __global uint4 const* const restrict dag00,  // dataset chunk buffers (each 1 GiB)
@@ -251,13 +299,8 @@ void octopus_search(
     uint const chunk_items,                     // DAG nodes per chunk buffer
     ulong4 const boundary)
 {
-    // One coefficient vector d[OCT_N] per 32-lane subgroup, shared in LDS.
-    __local uint dShared[OCT_NUM_WARPS * OCT_N];
-
-    uint const  localId = (uint)get_local_id(0);
-    uint const  warp    = localId / OCT_WARP;
-    uint const  lane    = localId % OCT_WARP;
-    ulong const nonce   = start_nonce + (ulong)(get_global_id(1) * GROUP_SIZE + get_global_id(0));
+    ulong const nonce = start_nonce + (ulong)(get_global_id(1) * GROUP_SIZE + get_global_id(0));
+    uint const  lane  = (uint)(nonce & (OCT_WARP - 1u));  // nonce % 32
 
     ulong header4[4];
     header4[0] = header[0];
@@ -266,28 +309,7 @@ void octopus_search(
     header4[3] = header[3];
 
     ////////////////////////////////////////////////////////////////////////////
-    // Cooperative compute_d: lane L fills d[i*32 + L] for i in 0..31 from
-    // siphash24(nonce) (nonce = warpBase*32 + L). Shared across the subgroup.
-    __local uint* const d = dShared + warp * OCT_N;
-    {
-        ulong v[4];
-        v[0] = header4[0];
-        v[1] = header4[1];
-        v[2] = header4[2];
-        v[3] = header4[3];
-        octopus_sip_hash24(v, nonce);
-        __attribute__((opencl_unroll_hint(1)))
-        for (uint i = 0u; i < OCT_DATA_PER_THREAD; ++i)
-        {
-            octopus_sip_round(v);
-            ulong const lanes = (v[0] ^ v[1]) ^ (v[2] ^ v[3]);
-            d[i * OCT_WARP + lane] = octopus_redumod(lanes & 0xffffffffUL);
-        }
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    ////////////////////////////////////////////////////////////////////////////
-    // multi_eval for this lane's nonce (lane == nonce % 32).
+    // multi_eval setup (header-derived, lane-dependent) — independent of d.
     uint const a = octopus_remap_param(header4[0]);
     uint const b = octopus_remap_param(header4[1]);
     uint       c;
@@ -323,24 +345,58 @@ void octopus_search(
         fullW2pow = octopus_mulmod(fullW2pow, w2);
     }
 
+    ////////////////////////////////////////////////////////////////////////////
+    // Coefficient vector d[OCT_N] + the (interleaved) polynomial evaluation.
+    uint result_v[OCT_DATA_PER_THREAD];
+#if OCT_COOP_D
+    // 32-lane subgroup shares one d in LDS: lane L fills d[i*32 + L] from siphash(nonce).
+    __local uint        dShared[OCT_NUM_WARPS * OCT_N];
+    __local uint* const d = dShared + (get_local_id(0) / OCT_WARP) * OCT_N;
+    {
+        ulong v[4];
+        v[0] = header4[0];
+        v[1] = header4[1];
+        v[2] = header4[2];
+        v[3] = header4[3];
+        octopus_sip_hash24(v, nonce);
+        __attribute__((opencl_unroll_hint(1)))
+        for (uint i = 0u; i < OCT_DATA_PER_THREAD; ++i)
+        {
+            octopus_sip_round(v);
+            ulong const lanes = (v[0] ^ v[1]) ^ (v[2] ^ v[3]);
+            d[i * OCT_WARP + lane] = octopus_redumod(lanes & 0xffffffffUL);
+        }
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    OCTOPUS_MULTI_EVAL(d)
+#else
+    // Baseline: each work-item builds the full d[OCT_N] in private memory (spills to scratch).
+    uint        d[OCT_N];
+    ulong const nonceBase = (nonce / OCT_WARP) * OCT_WARP;
+    for (uint lid = 0u; lid < OCT_WARP; ++lid)
+    {
+        ulong v[4];
+        v[0] = header4[0];
+        v[1] = header4[1];
+        v[2] = header4[2];
+        v[3] = header4[3];
+        octopus_sip_hash24(v, nonceBase + lid);
+        __attribute__((opencl_unroll_hint(1)))
+        for (uint i = 0u; i < OCT_DATA_PER_THREAD; ++i)
+        {
+            octopus_sip_round(v);
+            ulong const lanes = (v[0] ^ v[1]) ^ (v[2] ^ v[3]);
+            d[i * OCT_WARP + lid] = octopus_redumod(lanes & 0xffffffffUL);
+        }
+    }
+    OCTOPUS_MULTI_EVAL(d)
+#endif
+
     ulong threadResult = 0ul;
-    uint  result_v[OCT_DATA_PER_THREAD];
+    __attribute__((opencl_unroll_hint))
     for (uint i = 0u; i < OCT_DATA_PER_THREAD; ++i)
     {
-        uint const x = octopus_redumod((ulong)a * (ulong)w2pow + (ulong)b * (ulong)wpow + (ulong)c);
-        uint       pv = 0u;
-        __attribute__((opencl_unroll_hint(1)))
-        for (uint j = OCT_N; j--;)
-        {
-            pv = octopus_redumod((ulong)pv * (ulong)x + (ulong)d[j]);
-        }
-        result_v[i] = pv;
-        threadResult = threadResult * 0x01000193ul ^ (ulong)pv;
-        if (i + 1u < OCT_DATA_PER_THREAD)
-        {
-            wpow  = octopus_mulmod(wpow, fullWpow);
-            w2pow = octopus_mulmod(w2pow, fullW2pow);
-        }
+        threadResult = threadResult * 0x01000193ul ^ (ulong)result_v[i];
     }
 
     ////////////////////////////////////////////////////////////////////////////
