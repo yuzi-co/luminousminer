@@ -47,7 +47,11 @@ namespace stratum
         uint32_t       toGroup{ 0u };
 
         // KHEAVYHASH (Kaspa) — header reuses headerHash, target reuses boundary.
-        uint64_t timestamp{ 0ull };
+        // XELISHASHV3 — pieces of the 112-byte MinerWork blob the resolver assembles:
+        // headerHash[0:32] | timestamp[32:40 BE] | nonce[40:48] | xelisExtraNonce[48:80] | xelisPubKey[80:112].
+        uint64_t      timestamp{ 0ull };
+        algo::hash256 xelisExtraNonce{};
+        algo::hash256 xelisPubKey{};
 
         StratumJobInfo(StratumJobInfo&& obj) = delete;
         StratumJobInfo(StratumJobInfo const& obj) = delete;

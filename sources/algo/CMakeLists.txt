@@ -29,6 +29,7 @@ add_subdirectory(crypto)
 add_subdirectory(ethash)
 add_subdirectory(kheavyhash)
 add_subdirectory(progpow)
+add_subdirectory(xelishashv3)
 add_subdirectory(tests)
 
 set(SOURCES_ALGO ${HEADERS} ${SOURCES} PARENT_SCOPE)

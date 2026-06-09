@@ -47,6 +47,8 @@ void stratum::StratumJobInfo::copy(stratum::StratumJobInfo const& other)
     toGroup = other.toGroup;
 
     ////////////////////////////////////////////////////////////////////////////
-    // KHEAVYHASH
+    // KHEAVYHASH / XelisHash V3 (timestamp shared)
     timestamp = other.timestamp;
+    algo::copyHash(xelisExtraNonce, other.xelisExtraNonce);
+    algo::copyHash(xelisPubKey, other.xelisPubKey);
 }

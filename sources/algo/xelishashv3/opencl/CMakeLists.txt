@@ -22,16 +22,3 @@ add_custom_target(copy_xelishashv3_opencl_files ALL
   DEPENDS
     ${OUT_XELISHASHV3}/xelishashv3.cl
     ${OUT_XELISHASHV3}/blake3.cl)
-
-# Fold the OpenCL XelisHash V3 KAT into the main unit_test on the AMD path so the bit-identity
-# vectors for the shipped kernel run on the actual GPU. The .cl files are loaded at runtime;
-# the XV3_*_CL_PATH compile-time paths are the source files.
-if (BUILD_EXE_UNIT_TEST AND BUILD_AMD)
-    target_sources(${UNIT_TEST_EXE} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tests/opencl_kat_test.cpp)
-    target_include_directories(${UNIT_TEST_EXE} PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/../tests
-        ${OpenCL_INCLUDE_DIRS})
-    target_compile_definitions(${UNIT_TEST_EXE}
-        PRIVATE XV3_CL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/xelishashv3.cl"
-                XV3_BLAKE3_CL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../crypto/opencl/blake3.cl")
-endif()

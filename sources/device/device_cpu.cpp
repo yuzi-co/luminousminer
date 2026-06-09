@@ -27,6 +27,7 @@ void device::Device::setResolverCpu(algo::ALGORITHM const algorithm)
         case algo::ALGORITHM::EVRPROGPOW:
         case algo::ALGORITHM::AUTOLYKOS_V2:
         case algo::ALGORITHM::KHEAVYHASH:
+        case algo::ALGORITHM::XELISHASHV3:
         case algo::ALGORITHM::UNKNOWN:
         {
             break;
