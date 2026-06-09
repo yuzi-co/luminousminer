@@ -90,6 +90,12 @@ void device::Device::setResolverNvidia(algo::ALGORITHM const algorithm)
             resolver = NEW(resolver::ResolverNvidiaKHeavyHash);
             break;
         }
+        case algo::ALGORITHM::FISHHASH:
+        case algo::ALGORITHM::FISHHASHPLUS:
+        {
+            // FishHash has no CUDA resolver yet (AMD/OpenCL only).
+            break;
+        }
         case algo::ALGORITHM::UNKNOWN:
         {
             break;

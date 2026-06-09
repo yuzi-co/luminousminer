@@ -8,6 +8,7 @@
 #include <resolver/amd/ethash.hpp>
 #include <resolver/amd/evrprogpow.hpp>
 #include <resolver/amd/firopow.hpp>
+#include <resolver/amd/fishhash.hpp>
 #include <resolver/amd/kawpow.hpp>
 #include <resolver/amd/kheavyhash.hpp>
 #include <resolver/amd/meowpow.hpp>
@@ -88,6 +89,17 @@ void device::Device::setResolverAmd(algo::ALGORITHM const algorithm)
         {
             SAFE_DELETE(resolver);
             resolver = NEW(resolver::ResolverAmdKHeavyHash);
+            break;
+        }
+        case algo::ALGORITHM::FISHHASH:
+        {
+            SAFE_DELETE(resolver);
+            resolver = NEW(resolver::ResolverAmdFishhash);
+            break;
+        }
+        case algo::ALGORITHM::FISHHASHPLUS:
+        {
+            // FishHashPlus (Karlsen) resolver is added with the FishHashPlus plan.
             break;
         }
         case algo::ALGORITHM::UNKNOWN:

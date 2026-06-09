@@ -21,6 +21,8 @@ namespace algo
         AUTOLYKOS_V2,
         BLAKE3,
         KHEAVYHASH,
+        FISHHASH,
+        FISHHASHPLUS,
         UNKNOWN,
         MAX_SIZE = algo::ALGORITHM::UNKNOWN
     };
