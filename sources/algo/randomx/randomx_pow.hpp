@@ -53,13 +53,15 @@ namespace algo
             ::randomx_cache*   cache{ nullptr };
             ::randomx_dataset* dataset{ nullptr };
             ::randomx_vm*      vm{ nullptr };
-            std::string               seedKey{};
-            bool                      seedSet{ false };
+            std::string        seedKey{};
+            bool               seedSet{ false };
+            bool               full{ false };
         };
 
         // Stateless one-shot hash used by the KAT / verification paths: allocates, hashes,
-        // and frees. Not for the mining hot loop -- use RandomXHasher there.
-        void calculateHash(void const*    seed,
+        // and frees. Not for the mining hot loop -- use RandomXHasher there. Returns false
+        // (leaving `out` zeroed) on allocation failure rather than reporting a bogus hash.
+        bool calculateHash(void const*    seed,
                            size_t const   seedSize,
                            void const*    input,
                            size_t const   inputSize,

@@ -30,6 +30,7 @@ void algo::randomx::RandomXHasher::release()
     }
     seedSet = false;
     seedKey.clear();
+    full = false;
 }
 
 
@@ -43,8 +44,9 @@ bool algo::randomx::RandomXHasher::init(void const* seed, size_t const seedSize,
 {
     std::string const newSeed{ static_cast<char const*>(seed), seedSize };
 
-    // Same key and already built: nothing to do (RandomX re-keys only per Monero epoch).
-    if (true == seedSet && nullptr != vm && newSeed == seedKey)
+    // Same key AND same mode, already built: nothing to do (RandomX re-keys only per
+    // Monero epoch). A mode change with an unchanged seed must still rebuild.
+    if (true == seedSet && nullptr != vm && newSeed == seedKey && full == (false == lightMode))
     {
         return true;
     }
@@ -96,6 +98,7 @@ bool algo::randomx::RandomXHasher::init(void const* seed, size_t const seedSize,
 
     seedKey = newSeed;
     seedSet = true;
+    full = (false == lightMode);
     return true;
 }
 
@@ -106,7 +109,7 @@ void algo::randomx::RandomXHasher::hash(void const* input, size_t const inputSiz
 }
 
 
-void algo::randomx::calculateHash(void const*    seed,
+bool algo::randomx::calculateHash(void const*    seed,
                                   size_t const   seedSize,
                                   void const*    input,
                                   size_t const   inputSize,
@@ -116,7 +119,8 @@ void algo::randomx::calculateHash(void const*    seed,
     if (false == hasher.init(seed, seedSize, true))
     {
         std::memset(out.ubytes, 0, sizeof(out.ubytes));
-        return;
+        return false;
     }
     hasher.hash(input, inputSize, out);
+    return true;
 }

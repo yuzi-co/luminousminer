@@ -6,6 +6,9 @@
 #include <algo/hash.hpp>
 
 
+// NOTE: these types are the result contract for the forthcoming CPU resolver and are not
+// referenced yet in this branch. The layout is provisional and may change when the
+// resolver lands.
 namespace algo
 {
     namespace randomx
