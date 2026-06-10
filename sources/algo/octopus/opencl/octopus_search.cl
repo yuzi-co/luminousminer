@@ -44,6 +44,17 @@
 #ifndef OCT_LAZY_HORNER
 #define OCT_LAZY_HORNER 1
 #endif
+// OCT_USE_MONT 1 = the Horner modmul uses Montgomery reduction (R = 2^32) instead of
+//   Barrett (the default / production path: ~+27% on gfx1201). Montgomery costs ~5
+//   multiplies/step vs Barrett's ~7 (the reduction shift is a free word-select, not a
+//   cross-word >>41), and the accumulator is kept lazily in [0, 2*MOD). Coefficients d[] and
+//   the evaluation point xs are pre-converted to Montgomery form; result_v is converted back.
+//   0 = Barrett (OCT_LAZY_HORNER path above). Bit-exact vs the CPU oracle either way.
+//   (A 24-bit-mul split of the product was measured at -22% on gfx1201 and dropped — RDNA4
+//   runs 32-bit mul_lo/mul_hi at full rate, so mul24 only adds shift/mask overhead.)
+#ifndef OCT_USE_MONT
+#define OCT_USE_MONT 1
+#endif
 // Lets the benchmark build several variants (different switches) into distinctly named
 // kernels from this one source; production uses the default name.
 #ifndef OCT_KERNEL_NAME
@@ -146,6 +157,50 @@ inline
 uint octopus_mulmod(uint const a, uint const b)
 {
     return octopus_redumod((ulong)a * (ulong)b);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Montgomery form (R = 2^32). OCT_NINV = -MOD^{-1} mod 2^32, OCT_R2 = 2^64 mod MOD.
+// Used only when OCT_USE_MONT is set; see the switch comment. All three sequences are
+// validated bit-exact vs the reference modmul over the KAT range.
+#define OCT_NINV 0xf00fbfffu
+#define OCT_R2   765937u
+
+
+inline
+uint octopus_mont_mul(uint const a, uint const b)  // canonical: a, b < MOD -> [0, MOD)
+{
+    ulong const t = (ulong)a * (ulong)b;
+    uint const  m = (uint)t * OCT_NINV;
+    ulong const r = (t + (ulong)m * (ulong)OCT_MOD) >> 32;
+    return (r >= (ulong)OCT_MOD) ? (uint)(r - (ulong)OCT_MOD) : (uint)r;
+}
+
+
+inline
+uint octopus_mont_mul_lazy(uint const a, uint const b)  // a < 2*MOD, b < MOD -> [0, 2*MOD)
+{
+    ulong const t = (ulong)a * (ulong)b;
+    uint const  m = (uint)t * OCT_NINV;
+    return (uint)((t + (ulong)m * (ulong)OCT_MOD) >> 32);
+}
+
+
+inline
+uint octopus_to_mont(uint const a)  // a < MOD -> Montgomery form
+{
+    return octopus_mont_mul(a, OCT_R2);
+}
+
+
+inline
+uint octopus_from_mont(uint const a)  // a < 2*MOD (Montgomery) -> [0, MOD)
+{
+    ulong const t = (ulong)a;
+    uint const  m = (uint)t * OCT_NINV;
+    ulong const r = (t + (ulong)m * (ulong)OCT_MOD) >> 32;
+    return (r >= (ulong)OCT_MOD) ? (uint)(r - (ulong)OCT_MOD) : (uint)r;
 }
 
 
@@ -284,6 +339,21 @@ __global uint4 const* octopus_chunk(
 #define OCT_HORNER_STORE(P)  (P)
 #endif
 
+// Coefficient / evaluation-point preparation, one Horner step, and the result finalize —
+// switched between Barrett (default) and Montgomery (OCT_USE_MONT). With Montgomery the
+// d[] coefficients and xs are carried in Montgomery form and converted back on store.
+#if OCT_USE_MONT
+#define OCT_XS_PREP(X)           octopus_to_mont(X)
+#define OCT_D_PREP(X)            octopus_to_mont(X)
+#define OCT_HORNER_STEP(P, X, D) (octopus_mont_mul_lazy((P), (X)) + (D))
+#define OCT_HORNER_FIN(P)        octopus_from_mont(P)
+#else
+#define OCT_XS_PREP(X)           (X)
+#define OCT_D_PREP(X)            (X)
+#define OCT_HORNER_STEP(P, X, D) OCT_HORNER_REDUCE((ulong)(P) * (ulong)(X) + (ulong)(D))
+#define OCT_HORNER_FIN(P)        OCT_HORNER_STORE(P)
+#endif
+
 
 // Interleaved Horner: OCT_INTERLEAVE independent evaluations share each d[j] read and
 // expose ILP. DPTR is the coefficient vector (LDS or private). Fills result_v[0..31];
@@ -295,7 +365,7 @@ __global uint4 const* octopus_chunk(
         uint pv[OCT_INTERLEAVE];                                                                  \
         __attribute__((opencl_unroll_hint)) for (uint k = 0u; k < OCT_INTERLEAVE; ++k)            \
         {                                                                                         \
-            xs[k] = octopus_redumod((ulong)a * (ulong)w2pow + (ulong)b * (ulong)wpow + (ulong)c); \
+            xs[k] = OCT_XS_PREP(octopus_redumod((ulong)a * (ulong)w2pow + (ulong)b * (ulong)wpow + (ulong)c)); \
             pv[k] = 0u;                                                                           \
             if (i0 + k + 1u < OCT_DATA_PER_THREAD)                                                \
             {                                                                                     \
@@ -308,12 +378,12 @@ __global uint4 const* octopus_chunk(
             uint const dj = (DPTR)[j];                                                            \
             __attribute__((opencl_unroll_hint)) for (uint k = 0u; k < OCT_INTERLEAVE; ++k)        \
             {                                                                                     \
-                pv[k] = OCT_HORNER_REDUCE((ulong)pv[k] * (ulong)xs[k] + (ulong)dj);               \
+                pv[k] = OCT_HORNER_STEP(pv[k], xs[k], dj);                                        \
             }                                                                                     \
         }                                                                                         \
         __attribute__((opencl_unroll_hint)) for (uint k = 0u; k < OCT_INTERLEAVE; ++k)            \
         {                                                                                         \
-            result_v[i0 + k] = OCT_HORNER_STORE(pv[k]);                                           \
+            result_v[i0 + k] = OCT_HORNER_FIN(pv[k]);                                             \
         }                                                                                         \
     }
 
@@ -408,7 +478,7 @@ void OCT_KERNEL_NAME(
         {
             octopus_sip_round(v);
             ulong const lanes = (v[0] ^ v[1]) ^ (v[2] ^ v[3]);
-            d[i * OCT_WARP + lane] = octopus_redumod(lanes & 0xffffffffUL);
+            d[i * OCT_WARP + lane] = OCT_D_PREP(octopus_redumod(lanes & 0xffffffffUL));
         }
     }
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -430,7 +500,7 @@ void OCT_KERNEL_NAME(
         {
             octopus_sip_round(v);
             ulong const lanes = (v[0] ^ v[1]) ^ (v[2] ^ v[3]);
-            d[i * OCT_WARP + lid] = octopus_redumod(lanes & 0xffffffffUL);
+            d[i * OCT_WARP + lid] = OCT_D_PREP(octopus_redumod(lanes & 0xffffffffUL));
         }
     }
     OCTOPUS_MULTI_EVAL(d)

@@ -30,6 +30,7 @@ set(BENCHMARK_OPENCL_FILES
     octopus/octopus_lm5.cl
     octopus/octopus_lm6.cl
     octopus/octopus_lm7.cl
+    octopus/octopus_lm8.cl
 )
 
 foreach(FILE ${BENCHMARK_OPENCL_FILES})
@@ -69,4 +70,5 @@ add_custom_target(copy_benchmark_opencl ALL
     ${OUT_COMMON}/octopus/octopus_lm5.cl
     ${OUT_COMMON}/octopus/octopus_lm6.cl
     ${OUT_COMMON}/octopus/octopus_lm7.cl
+    ${OUT_COMMON}/octopus/octopus_lm8.cl
 )
