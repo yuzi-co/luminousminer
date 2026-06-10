@@ -28,15 +28,17 @@ struct RandomXKatTest : public testing::Test
 // Canonical RandomX (non-V2 / light) test vectors from tevador/RandomX src/tests/tests.cpp.
 TEST_F(RandomXKatTest, officialVectors)
 {
-    EXPECT_EQ(rxHash("test key 000", "This is a test"),
-              "639183aae1bf4c9a35884cb46b09cad9175f04efd7684e7262a0ac1c2f0b4e3f");
+    EXPECT_EQ(
+        rxHash("test key 000", "This is a test"),
+        "639183aae1bf4c9a35884cb46b09cad9175f04efd7684e7262a0ac1c2f0b4e3f");
 
-    EXPECT_EQ(rxHash("test key 000", "Lorem ipsum dolor sit amet"),
-              "300a0adb47603dedb42228ccb2b211104f4da45af709cd7547cd049e9489c969");
+    EXPECT_EQ(
+        rxHash("test key 000", "Lorem ipsum dolor sit amet"),
+        "300a0adb47603dedb42228ccb2b211104f4da45af709cd7547cd049e9489c969");
 
-    EXPECT_EQ(rxHash("test key 000",
-                     "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua"),
-              "c36d4ed4191e617309867ed66a443be4075014e2b061bcdaf9ce7b721d2b77a8");
+    EXPECT_EQ(
+        rxHash("test key 000", "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua"),
+        "c36d4ed4191e617309867ed66a443be4075014e2b061bcdaf9ce7b721d2b77a8");
 }
 
 

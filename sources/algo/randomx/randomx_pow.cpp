@@ -109,11 +109,12 @@ void algo::randomx::RandomXHasher::hash(void const* input, size_t const inputSiz
 }
 
 
-bool algo::randomx::calculateHash(void const*    seed,
-                                  size_t const   seedSize,
-                                  void const*    input,
-                                  size_t const   inputSize,
-                                  algo::hash256& out)
+bool algo::randomx::calculateHash(
+    void const*    seed,
+    size_t const   seedSize,
+    void const*    input,
+    size_t const   inputSize,
+    algo::hash256& out)
 {
     algo::randomx::RandomXHasher hasher{};
     if (false == hasher.init(seed, seedSize, true))

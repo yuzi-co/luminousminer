@@ -61,10 +61,11 @@ namespace algo
         // Stateless one-shot hash used by the KAT / verification paths: allocates, hashes,
         // and frees. Not for the mining hot loop -- use RandomXHasher there. Returns false
         // (leaving `out` zeroed) on allocation failure rather than reporting a bogus hash.
-        bool calculateHash(void const*    seed,
-                           size_t const   seedSize,
-                           void const*    input,
-                           size_t const   inputSize,
-                           algo::hash256& out);
+        bool calculateHash(
+            void const*    seed,
+            size_t const   seedSize,
+            void const*    input,
+            size_t const   inputSize,
+            algo::hash256& out);
     }
 }
