@@ -46,7 +46,9 @@ bool resolver::ResolverAmdXelisHashV3::updateMemory(stratum::StratumJobInfo cons
     // XelisHash V3 is memory-hard: one ~531 KiB scratchpad per in-flight nonce.
     // Pick a modest occupancy so the single scratch buffer stays under AMD's 4 GiB
     // per-allocation limit (96*64 = 6144 nonces ~ 3.1 GiB). The CLI --blocks/--threads
-    // override this; bump it on cards with headroom (cap ~7800 nonces / <4 GiB).
+    // override this; bump it on cards with VRAM headroom up to ~7680 nonces (3.89 GiB) for
+    // ~+2.5% (measured, gfx1201) — past that the per-alloc limit is hit and throughput
+    // collapses rather than failing cleanly, so 7680 is the safe ceiling.
     overrideOccupancy(64u, 96u);
 
     size_t const inFlight{ static_cast<size_t>(getBlocks()) * static_cast<size_t>(getThreads()) };
