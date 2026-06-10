@@ -19,7 +19,7 @@ namespace
     // Parse up to 8 little-endian bytes from a Monero target hex string.
     uint64_t hexToUintLE(std::string const& hex)
     {
-        uint64_t value{ 0ull };
+        uint64_t     value{ 0ull };
         size_t const bytes{ (hex.size() / 2u > 8u) ? 8u : hex.size() / 2u };
         for (size_t i{ 0u }; i < bytes; ++i)
         {
@@ -245,9 +245,7 @@ void stratum::StratumMonero::onMiningSetDifficulty([[maybe_unused]] boost::json:
 }
 
 
-void stratum::StratumMonero::miningSubmit(
-    uint32_t const             deviceId,
-    boost::json::object const& params)
+void stratum::StratumMonero::miningSubmit(uint32_t const deviceId, boost::json::object const& params)
 {
     UNIQUE_LOCK(mtxSubmit);
 
