@@ -46,6 +46,11 @@ namespace stratum
         uint32_t       fromGroup{ 0u };
         uint32_t       toGroup{ 0u };
 
+        // RANDOMX (Monero rx/0): the hashing blob is left-aligned in `headerBlob`, the
+        // RandomX key (epoch seed_hash) in `seedHash`, the expanded 64-bit target in
+        // `boundaryU64`, and the block height in `blockNumber`.
+        uint32_t blobLength{ 0u };
+
         StratumJobInfo(StratumJobInfo&& obj) = delete;
         StratumJobInfo(StratumJobInfo const& obj) = delete;
         StratumJobInfo& operator=(StratumJobInfo&& obj) = delete;

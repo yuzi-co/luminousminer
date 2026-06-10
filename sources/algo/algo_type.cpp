@@ -53,6 +53,10 @@ std::string algo::toString(algo::ALGORITHM const algorithm)
         {
             return "blake3";
         }
+        case algo::ALGORITHM::RANDOMX:
+        {
+            return "randomx";
+        }
         case algo::ALGORITHM::UNKNOWN:
         {
             return "unknown";
@@ -112,6 +116,10 @@ algo::ALGORITHM algo::toEnum(std::string const& algo)
     else if (algo == "blake3")
     {
         return algo::ALGORITHM::BLAKE3;
+    }
+    else if (algo == "randomx" || algo == "rx/0")
+    {
+        return algo::ALGORITHM::RANDOMX;
     }
 
     return algo::ALGORITHM::UNKNOWN;
