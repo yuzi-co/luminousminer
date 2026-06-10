@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 
 #include <algo/hash.hpp>
@@ -45,6 +46,37 @@ namespace
         }
         return raw;
     }
+
+
+    // Build the 256-bit boundary from the expanded 64-bit target, big-endian in the high
+    // 8 bytes, so that algo::toUINT64(boundary) == target (the boundary/boundaryU64 pair
+    // stays consistent, matching how the other stratums derive boundaryU64 from boundary).
+    algo::hash256 boundaryFromTarget(uint64_t const target)
+    {
+        algo::hash256 boundary{};
+        for (uint32_t i{ 0u }; i < 8u; ++i)
+        {
+            boundary.ubytes[i] = static_cast<uint8_t>((target >> (56u - 8u * i)) & 0xffull);
+        }
+        return boundary;
+    }
+}
+
+
+void stratum::StratumMonero::onConnect()
+{
+    logInfo() << "Stratum connected!";
+
+    common::Config const& config{ common::Config::instance() };
+    if (true == config.mining.wallet.empty() || true == config.mining.password.empty())
+    {
+        logErr() << "Cannot connect wallet[" << config.mining.wallet << "]"
+                 << " password[" << config.mining.password << "]";
+        return;
+    }
+
+    // Always the Monero login handshake, independent of config.mining.stratumType.
+    miningSubscribe();
 }
 
 
@@ -70,24 +102,43 @@ void stratum::StratumMonero::miningSubscribe()
 void stratum::StratumMonero::parseJob(boost::json::object const& job)
 {
     ////////////////////////////////////////////////////////////////////////////
+    // Required fields: reject the job rather than silently degrading to empty blob /
+    // zero target (which would mine uselessly against a zero boundary).
+    std::string const jobId{ common::boostGetString(job, "job_id") };
+    std::string const blob{ common::boostGetString(job, "blob") };
+    std::string const seedHash{ common::boostGetString(job, "seed_hash") };
+    std::string const target{ common::boostGetString(job, "target") };
+    if (true == jobId.empty() || true == blob.empty() || true == seedHash.empty() || true == target.empty())
+    {
+        logErr() << "Malformed job (missing job_id/blob/seed_hash/target): " << job;
+        return;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
     UNIQUE_LOCK(mtxDispatchJob);
 
     ////////////////////////////////////////////////////////////////////////////
-    jobInfo.jobIDStr.assign(common::boostGetString(job, "job_id"));
+    jobInfo.jobIDStr.assign(jobId);
     jobInfo.jobID = algo::toHash256(jobInfo.jobIDStr);
 
     ////////////////////////////////////////////////////////////////////////////
-    std::string const blob{ common::boostGetString(job, "blob") };
     jobInfo.blobLength = castU32(blob.size() / 2u);
     jobInfo.headerBlob = algo::toHash<algo::hash3072>(blob, algo::HASH_SHIFT::LEFT);
 
     ////////////////////////////////////////////////////////////////////////////
-    jobInfo.seedHash = algo::toHash256(common::boostGetString(job, "seed_hash"));
+    // RandomX re-keys when the epoch seed_hash rotates. Bump the epoch on change so the
+    // device/resolver layer gets an explicit re-key signal (the RandomX VM/dataset must
+    // be rebuilt for the new key).
+    algo::hash256 const newSeed{ algo::toHash256(seedHash) };
+    if (0 != std::memcmp(newSeed.ubytes, jobInfo.seedHash.ubytes, sizeof(newSeed.ubytes)))
+    {
+        jobInfo.seedHash = newSeed;
+        ++jobInfo.epoch;
+    }
 
     ////////////////////////////////////////////////////////////////////////////
-    std::string const target{ common::boostGetString(job, "target") };
-    jobInfo.boundary = algo::toHash256(target);
     jobInfo.boundaryU64 = expandTarget(target);
+    jobInfo.boundary = boundaryFromTarget(jobInfo.boundaryU64);
 
     ////////////////////////////////////////////////////////////////////////////
     if (true == job.contains("height"))
@@ -98,7 +149,7 @@ void stratum::StratumMonero::parseJob(boost::json::object const& job)
     ////////////////////////////////////////////////////////////////////////////
     // RandomX has no pool-assigned extranonce: the worker owns the full 4-byte nonce at
     // blob offset 39. Seed a non-zero start so the job validates; the CPU resolver (added
-    // separately) sets the real per-device nonce partitioning.
+    // separately) owns the real per-device nonce partitioning.
     if (0ull == jobInfo.nonce)
     {
         jobInfo.startNonce = 1ull;
@@ -133,7 +184,13 @@ void stratum::StratumMonero::onResponse(boost::json::object const& root)
         }
 
         boost::json::object const& result{ root.at("result").as_object() };
-        rpcId = common::boostGetString(result, "id");
+
+        // rpcId is read by miningSubmit on the device threads under mtxSubmit; take the
+        // same lock here (network I/O thread) so the session-id write is not a data race.
+        {
+            UNIQUE_LOCK(mtxSubmit);
+            rpcId = common::boostGetString(result, "id");
+        }
         authenticated = true;
 
         if (true == result.contains("job") && true == result.at("job").is_object())
