@@ -12,6 +12,7 @@
 #include <stratum/kawpow.hpp>
 #include <stratum/kheavyhash.hpp>
 #include <stratum/meowpow.hpp>
+#include <stratum/monero.hpp>
 #include <stratum/progpow.hpp>
 #include <stratum/progpow_quai.hpp>
 #include <stratum/progpow_z.hpp>
