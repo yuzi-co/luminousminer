@@ -3,6 +3,12 @@
 # executables and install() rules are removed. Arch detection (x86_64 / ARMv8 /
 # PowerPC / RISC-V) is kept as upstream ships it.
 
+# The JIT static stubs are GNU-syntax .S files (assembler-with-cpp). The parent project
+# only enables C/CXX, so enable ASM here and tag those sources LANGUAGE ASM -- compiling
+# them as C (upstream's ccache "cheat") makes the C preprocessor choke on the `#` asm
+# comment lines. clang's ASM driver runs the asm preprocessor and handles them.
+enable_language(ASM)
+
 set(randomx_sources
 src/aes_hash.cpp
 src/argon2_ref.c
@@ -80,7 +86,7 @@ if ((CMAKE_SIZEOF_VOID_P EQUAL 8) AND (ARCH_ID STREQUAL "x86_64" OR ARCH_ID STRE
       DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/asm/configuration.asm)
   else()
     list(APPEND randomx_sources src/jit_compiler_x86_static.S)
-    set_property(SOURCE src/jit_compiler_x86_static.S PROPERTY LANGUAGE C)
+    set_property(SOURCE src/jit_compiler_x86_static.S PROPERTY LANGUAGE ASM)
     set_property(SOURCE src/jit_compiler_x86_static.S PROPERTY XCODE_EXPLICIT_FILE_TYPE sourcecode.asm)
     if(ARCH STREQUAL "native")
       add_flag("-march=native")
@@ -110,7 +116,7 @@ if(ARM_ID STREQUAL "aarch64" OR ARM_ID STREQUAL "arm64" OR ARM_ID STREQUAL "armv
   list(APPEND randomx_sources
     src/jit_compiler_a64_static.S
     src/jit_compiler_a64.cpp)
-  set_property(SOURCE src/jit_compiler_a64_static.S PROPERTY LANGUAGE C)
+  set_property(SOURCE src/jit_compiler_a64_static.S PROPERTY LANGUAGE ASM)
   set_property(SOURCE src/jit_compiler_a64_static.S PROPERTY XCODE_EXPLICIT_FILE_TYPE sourcecode.asm)
 
   include(CheckIncludeFile)

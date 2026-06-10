@@ -76,6 +76,11 @@ std::shared_ptr<stratum::Stratum> stratum::NewStratum(algo::ALGORITHM const algo
             stratum = NEW_SHARED(stratum::StratumKHeavyHash);
             break;
         }
+        case algo::ALGORITHM::RANDOMX:
+        {
+            stratum = NEW_SHARED(stratum::StratumMonero);
+            break;
+        }
         case algo::ALGORITHM::UNKNOWN:
         {
             break;
