@@ -16,11 +16,11 @@
 #include <common/kernel_generator/opencl.hpp>
 
 
-// Benchmark the octopus_search optimization variants (octopus_lm1..lm7) on AMD. A moderate
+// Benchmark the octopus_search optimization variants (octopus_lm1..lm8) on AMD. A moderate
 // synthetic dataset is built once with the production octopus_dag kernel; each variant is
 // then JIT-built (the lmN.cl wrappers flip OCT_COOP_D / OCT_USE_BARRETT / OCT_INTERLEAVE /
-// OCT_LAZY_HORNER)
-// and timed over the configured grid. The variants are bit-exact (see the unit-test sweep);
+// OCT_LAZY_HORNER / OCT_USE_MONT) and timed over the configured grid. lm8 (Montgomery) is the
+// production kernel. The variants are bit-exact (see the unit-test sweep);
 // this measures throughput. Pure compute comparison — the DAG is small enough to stay cache
 // resident, so absolute MH/s is higher than the live memory-bound hashrate.
 bool benchmark::BenchmarkWorkflow::runAmdOctopus()
@@ -149,6 +149,7 @@ bool benchmark::BenchmarkWorkflow::runAmdOctopus()
     runKernel("octopus_lm5");
     runKernel("octopus_lm6");
     runKernel("octopus_lm7");
+    runKernel("octopus_lm8");
 
     ////////////////////////////////////////////////////////////////////////////
     dashboards.emplace_back(dashboard);
