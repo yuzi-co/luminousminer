@@ -115,7 +115,7 @@
                 "loop": 3,
                 "threads": 64,
                 "blocks": 96,
-                "kernels": ["divmod_full", "divmod_bit64", "divmod_fold64", "divmod_divlu"]
+                "kernels": ["divmod_full", "divmod_divlu", "divmod_remhi", "isqrt_f32"]
             }
         }
     }

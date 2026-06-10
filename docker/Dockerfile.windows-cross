@@ -38,6 +38,9 @@ ARG VCPKG_REF=40dd49b0c9c7dbd79dc64cad5e82308eae04f67f
 # Build bin/unit_test too (googletest via FetchContent). Default OFF to match the
 # windows-cross preset; flip ON for CI/test builds.
 ARG BUILD_TESTS=OFF
+# Build bin/benchmark too (the kernel-variant throughput harness). Default OFF to
+# match the windows-cross preset; flip ON to profile algo variants on real hardware.
+ARG BUILD_BENCH=OFF
 
 # Build bin/benchmark too (offline kernel A/B harness). Default OFF to match the
 # windows-cross preset; flip ON for tuning builds.
