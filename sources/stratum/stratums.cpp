@@ -90,21 +90,36 @@ std::shared_ptr<stratum::Stratum> stratum::NewStratum(algo::ALGORITHM const algo
 
     stratum->stratumType = config.mining.stratumType;
 
-    switch (stratum->stratumType)
+    // protocol / stratumType are Ethereum-stratum concepts. Non-eth algorithms speak
+    // their own handshake (e.g. RandomX/Monero `login`) and must not inherit an Ethereum
+    // protocol string from the global config.
+    switch (algorithm)
     {
-        case stratum::STRATUM_TYPE::ETHEREUM_V1:
-        {
-            stratum->protocol = "EthereumStratum/1.0.0";
-            break;
-        }
-        case stratum::STRATUM_TYPE::ETHEREUM_V2:
-        {
-            stratum->protocol = "EthereumStratum/2.0.0";
-            break;
-        }
-        case stratum::STRATUM_TYPE::ETHPROXY:
+        case algo::ALGORITHM::RANDOMX:
         {
             stratum->protocol.clear();
+            break;
+        }
+        default:
+        {
+            switch (stratum->stratumType)
+            {
+                case stratum::STRATUM_TYPE::ETHEREUM_V1:
+                {
+                    stratum->protocol = "EthereumStratum/1.0.0";
+                    break;
+                }
+                case stratum::STRATUM_TYPE::ETHEREUM_V2:
+                {
+                    stratum->protocol = "EthereumStratum/2.0.0";
+                    break;
+                }
+                case stratum::STRATUM_TYPE::ETHPROXY:
+                {
+                    stratum->protocol.clear();
+                    break;
+                }
+            }
             break;
         }
     }

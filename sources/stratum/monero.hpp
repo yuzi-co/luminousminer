@@ -21,8 +21,10 @@ namespace stratum
         void onMiningSetDifficulty(boost::json::object const& root) final;
         void onUnknownMethod(boost::json::object const& root) final;
 
-        // onConnect() (base) dispatches to miningSubscribe() for the default stratum type;
-        // we repurpose it to send the Monero `login` request.
+        // The base onConnect() dispatches by stratumType (subscribe/hello/eth-login). Monero
+        // always uses the JSON-RPC `login` handshake regardless of the configured stratum
+        // type, so override onConnect() to send it directly.
+        void onConnect() final;
         void miningSubscribe() final;
         void miningSubmit(uint32_t const deviceId, boost::json::object const& params) final;
 
