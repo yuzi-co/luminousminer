@@ -87,23 +87,46 @@ static inline int xv3_pick_half(ulong seed)
 }
 
 
+// floor(sqrt(n)) — bit-identical to the CPU reference (xelishashv3.cpp isqrt): an FP
+// approximation truncated to u64, then a single +/-1 integer adjust, INCLUDING the wrapping
+// (approx+1)*(approx+1) the reference relies on for n near 2^64. XV3_ISQRT_IMPL selects the seed
+// at build time; 0 (FP64) is consensus-correct and the production default. The whole correction
+// body is shared via the macro so every variant differs only in the one sqrt seed.
+#ifndef XV3_ISQRT_IMPL
+#define XV3_ISQRT_IMPL 0
+#endif
+
+#define XV3_ISQRT_BODY(SEED)                          \
+    if (n < 2UL)                                      \
+    {                                                 \
+        return n;                                     \
+    }                                                 \
+    ulong approx = (SEED);                            \
+    if (approx * approx > n)                          \
+    {                                                 \
+        return approx - 1UL;                          \
+    }                                                 \
+    if ((approx + 1UL) * (approx + 1UL) <= n)         \
+    {                                                 \
+        return approx + 1UL;                          \
+    }                                                 \
+    return approx;
+
+#if XV3_ISQRT_IMPL == 1
+// PROBE ONLY — NON-CONSENSUS. f32 seed: the 24-bit mantissa is too coarse for a single +/-1 adjust
+// to reach floor(sqrt(n)) at large n, so digests diverge from the reference. Exists solely to
+// measure the throughput ceiling of removing the slow consumer-RDNA4 FP64 sqrt before committing
+// to a bit-exact integer replacement.
 static inline ulong xv3_isqrt(ulong n)
 {
-    if (n < 2UL)
-    {
-        return n;
-    }
-    ulong approx = (ulong)sqrt((double)n);
-    if (approx * approx > n)
-    {
-        return approx - 1UL;
-    }
-    if ((approx + 1UL) * (approx + 1UL) <= n)
-    {
-        return approx + 1UL;
-    }
-    return approx;
+    XV3_ISQRT_BODY((ulong)sqrt((float)n))
 }
+#else
+static inline ulong xv3_isqrt(ulong n)
+{
+    XV3_ISQRT_BODY((ulong)sqrt((double)n))
+}
+#endif
 
 
 // ───────────────────── 128-bit integer emulation ─────────────────────
@@ -214,7 +237,7 @@ static inline void xv3_divmod_by64(ulong nhi, ulong nlo, ulong d, ulong* qhi, ul
 }
 #endif
 
-#if XV3_DIVMOD_IMPL == 3
+#if XV3_DIVMOD_IMPL == 3 || XV3_DIVMOD_IMPL == 4
 // (u1:u0) / v with u1 < v (quotient fits in 64 bits), v != 0 — Hacker's Delight base-2^32
 // long division (Knuth Algorithm D, 2 limbs), no per-bit loop. *rem gets the remainder.
 static inline ulong xv3_udiv_128_by_64(ulong u1, ulong u0, ulong v, ulong* rem)
@@ -257,12 +280,26 @@ static inline ulong xv3_udiv_128_by_64(ulong u1, ulong u0, ulong v, ulong* rem)
     *rem = (un21 * b + un0 - q0 * v) >> s;
     return q1 * b + q0;
 }
+#endif
 
-
+#if XV3_DIVMOD_IMPL == 3
 // V3: native fold + divlu tail — no per-bit loop at all.
 static inline void xv3_divmod_by64(ulong nhi, ulong nlo, ulong d, ulong* qhi, ulong* qlo, ulong* rlo)
 {
     *qhi = nhi / d;
+    *qlo = xv3_udiv_128_by_64(nhi % d, nlo, d, rlo);
+}
+#endif
+
+#if XV3_DIVMOD_IMPL == 4
+// V4: identical to V3 (native fold + divlu) but drops the high quotient word. No stage-3 caller
+// ever reads qhi or rhi (cases 0/10/11 and modpow use rl; cases 12/13 use ql), so *qhi = nhi / d
+// is provably dead — this variant tests whether the compiler already eliminates that emulated
+// u64 divide across the (non-inlined, RGA-opaque) impl path or leaves it in. The low dividend
+// still needs nhi % d, so the modulo remains.
+static inline void xv3_divmod_by64(ulong nhi, ulong nlo, ulong d, ulong* qhi, ulong* qlo, ulong* rlo)
+{
+    *qhi = 0UL;
     *qlo = xv3_udiv_128_by_64(nhi % d, nlo, d, rlo);
 }
 #endif
