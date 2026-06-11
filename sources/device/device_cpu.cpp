@@ -3,6 +3,7 @@
 #include <common/custom.hpp>
 #include <device/device.hpp>
 #include <resolver/cpu/blake3.hpp>
+#include <resolver/cpu/randomx.hpp>
 
 
 void device::Device::setResolverCpu(algo::ALGORITHM const algorithm)
@@ -13,6 +14,12 @@ void device::Device::setResolverCpu(algo::ALGORITHM const algorithm)
         {
             SAFE_DELETE(resolver);
             resolver = NEW(resolver::ResolverCpuBlake3);
+            break;
+        }
+        case algo::ALGORITHM::RANDOMX:
+        {
+            SAFE_DELETE(resolver);
+            resolver = NEW(resolver::ResolverCpuRandomX);
             break;
         }
         case algo::ALGORITHM::SHA256:
