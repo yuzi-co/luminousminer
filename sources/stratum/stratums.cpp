@@ -78,7 +78,7 @@ std::shared_ptr<stratum::Stratum> stratum::NewStratum(algo::ALGORITHM const algo
         }
         case algo::ALGORITHM::OCTOPUS:
         {
-            stratum = NEW(stratum::StratumOctopus);
+            stratum = NEW_SHARED(stratum::StratumOctopus);
             break;
         }
         case algo::ALGORITHM::UNKNOWN:
