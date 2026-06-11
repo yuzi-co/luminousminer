@@ -19,7 +19,7 @@ jobs:
       - name: Build linux x64 (CPU-only, default TARGETARCH) runtime image
         run: |
           docker buildx build --platform linux/amd64 \
-            -f docker/Dockerfile.linux --build-arg GPU=cpu \
+            -f docker/Dockerfile.linux --build-arg GPU=none --build-arg CPU=ON \
             --target runtime -t lm:linux-x64-cpu --load .
       - name: Smoke-run miner --help
         run: |

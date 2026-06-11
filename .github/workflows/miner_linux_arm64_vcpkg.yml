@@ -19,7 +19,7 @@ jobs:
       - name: Build linux-arm64 (CPU-only) runtime image
         run: |
           docker buildx build --platform linux/arm64 \
-            -f docker/Dockerfile.linux --build-arg GPU=cpu \
+            -f docker/Dockerfile.linux --build-arg GPU=none --build-arg CPU=ON \
             --target runtime -t lm:linux-arm64 --load .
 
       - name: Smoke-run miner --help (native arm64)

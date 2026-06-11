@@ -13,7 +13,7 @@ endif()
 ################################################################################
 ### DEVICE TARGET
 option(BUILD_AMD "Build with OpenCL for AMD GPU" ON)
-option(BUILD_CPU "Build with OpenMP for CPU(Intel/AMD)" ON)
+option(BUILD_CPU "Build the CPU resolver (Intel/AMD)" ON)
 option(BUILD_NVIDIA "Build with CUDA for Nvidia GPU" ON)
 option(USE_CLANG_CUDA "Compile .cu with clang (not nvcc/FindCUDA) for Windows cross-compile" OFF)
 ### BUILD EXE
@@ -528,7 +528,7 @@ endif()
 
 
 ################################################################################
-### OpenMP                                                                  ####
+### CPU                                                                     ####
 ################################################################################
 if (BUILD_CPU)
     add_compile_definitions(CPU_ENABLE)
