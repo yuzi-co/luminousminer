@@ -78,7 +78,7 @@ std::shared_ptr<stratum::Stratum> stratum::NewStratum(algo::ALGORITHM const algo
         }
         case algo::ALGORITHM::XELISHASHV3:
         {
-            stratum = NEW(stratum::StratumXelisHashV3);
+            stratum = NEW_SHARED(stratum::StratumXelisHashV3);
             break;
         }
         case algo::ALGORITHM::UNKNOWN:
