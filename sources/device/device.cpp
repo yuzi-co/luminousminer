@@ -29,6 +29,7 @@
 #include <resolver/nvidia/progpow_quai.hpp>
 #if defined(CPU_ENABLE)
 #include <resolver/cpu/blake3.hpp>
+#include <resolver/cpu/randomx.hpp>
 #endif
 
 
@@ -376,6 +377,25 @@ void device::Device::setAlgorithm(algo::ALGORITHM newAlgorithm)
                 {
                     SAFE_DELETE(resolver);
                     resolver = NEW(resolver::ResolverNvidiaKHeavyHash);
+                    break;
+                }
+#endif
+                case device::DEVICE_TYPE::UNKNOWN:
+                {
+                    break;
+                }
+            }
+            break;
+        }
+        case algo::ALGORITHM::RANDOMX:
+        {
+            switch (deviceType)
+            {
+#if defined(CPU_ENABLE)
+                case device::DEVICE_TYPE::CPU:
+                {
+                    SAFE_DELETE(resolver);
+                    resolver = NEW(resolver::ResolverCpuRandomX);
                     break;
                 }
 #endif
