@@ -119,7 +119,18 @@ void stratum::StratumMonero::parseJob(boost::json::object const& job)
 
     ////////////////////////////////////////////////////////////////////////////
     jobInfo.jobIDStr.assign(jobId);
-    jobInfo.jobID = algo::toHash256(jobInfo.jobIDStr);
+
+    // Monero `job_id` is an opaque pool token, not necessarily hex -- hex-parsing it (as the
+    // other algos do for their hash-shaped ids) throws std::stoul on any non-hex character.
+    // Copy its raw bytes into the 256-bit id purely so isValidJob() sees a non-empty value;
+    // the wire/submit/staleness paths all key off jobIDStr, never this hash.
+    jobInfo.jobID = algo::hash256{};
+    size_t jobIdBytes{ jobId.size() };
+    if (jobIdBytes > algo::LEN_HASH_256_WORD_8)
+    {
+        jobIdBytes = algo::LEN_HASH_256_WORD_8;
+    }
+    std::memcpy(jobInfo.jobID.ubytes, jobId.data(), jobIdBytes);
 
     ////////////////////////////////////////////////////////////////////////////
     jobInfo.blobLength = castU32(blob.size() / 2u);
