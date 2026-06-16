@@ -3,6 +3,8 @@
 #if defined(CPU_ENABLE)
 
 
+#include <cstddef>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -41,6 +43,21 @@ namespace resolver
         algo::randomx::ResultShare resultShare{};
 
       private:
+        // One output buffer of the double-buffer pair. executeAsync() launches the pool into the
+        // idle buffer while the device reads/submits the other, so the blob/base/target the
+        // workers scan are copied here by value: the worker closure outlives the executeAsync()
+        // call that dispatched it. The first hit wins (single-share PoW), guarded by a mutex with
+        // negligible contention. Mirrors ResolverCpuBlake3::Batch.
+        struct Batch
+        {
+            algo::hash3072        header{};
+            uint64_t              base{ 0ull };
+            uint64_t              target{ 0ull };
+            size_t                blobLength{ 0u };
+            algo::randomx::Result result{};
+            std::mutex            hitMutex{};
+        };
+
         // Resolved CPU pool sizing, computed once from Config so the affinity mask is parsed
         // a single time and fed to both the worker-count resolution and the pool itself.
         struct PoolConfig
@@ -59,6 +76,14 @@ namespace resolver
 
         void releaseRandomX();
 
+        // Load a buffer from a job (copy blob/base/target by value, reset its result) before
+        // dispatching it; hash one [lo, hi) nonce slice into it on worker `workerIndex`'s VM;
+        // drain a completed buffer into resultShare. Labeling uses the live jobInfo like the
+        // GPU/Blake3 executeAsync(), and submit() drops anything gone stale.
+        void prepareBatch(Batch& batch, stratum::StratumJobInfo const& jobInfo, size_t blobLength);
+        void hashChunk(uint64_t lo, uint64_t hi, uint32_t workerIndex, Batch& batch);
+        void harvest(Batch& batch, stratum::StratumJobInfo const& jobInfo);
+
         // The pinned worker pool: RandomX is the second CPU resolver to parallelize its scan.
         resolver::CpuThreadPool    threadPool;
         uint32_t                   workerCount{ 1u };
@@ -66,6 +91,12 @@ namespace resolver
         std::vector<::randomx_vm*> vms{};
         std::string                seedKey{};
         bool                       seedReady{ false };
+
+        // Double-buffer state: executeAsync() launches into batch[currentIndex] and harvests the
+        // other; inFlight tracks whether a previous async batch is still pending its wait().
+        Batch    batch[2]{};
+        uint32_t currentIndex{ 0u };
+        bool     inFlight{ false };
     };
 }
 
