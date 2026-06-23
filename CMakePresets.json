@@ -77,12 +77,30 @@
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
         "VCPKG_MANIFEST_FEATURES": "openssl"
       }
+    },
+    {
+      "name": "macos-opencl",
+      "displayName": "macOS (Apple Silicon, native clang; AMD OpenCL via Apple framework + CPU)",
+      "description": "Native macOS GPU build. Links Apple's OpenCL.framework (1.2) for the AMD/OpenCL path; CPU backend on; NVIDIA off. Boost + OpenSSL + Khronos OpenCL headers from vcpkg. Produces a Mach-O `miner` that GPU-mines on Apple Silicon (Blake3 verified).",
+      "inherits": "vcpkg-base",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-opencl",
+      "cacheVariables": {
+        "BUILD_AMD": "ON",
+        "BUILD_NVIDIA": "OFF",
+        "BUILD_CPU": "ON",
+        "BUILD_EXE_BENCHMARK": "ON",
+        "BUILD_EXE_UNIT_TEST": "ON",
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
+        "VCPKG_MANIFEST_FEATURES": "openssl;opencl"
+      }
     }
   ],
   "buildPresets": [
     { "name": "linux",         "configurePreset": "linux",         "configuration": "Release" },
     { "name": "windows-cross", "configurePreset": "windows-cross", "configuration": "Release" },
     { "name": "linux-cpu",     "configurePreset": "linux-cpu",     "configuration": "Release" },
-    { "name": "macos-cpu",     "configurePreset": "macos-cpu",     "configuration": "Release" }
+    { "name": "macos-cpu",     "configurePreset": "macos-cpu",     "configuration": "Release" },
+    { "name": "macos-opencl",  "configurePreset": "macos-opencl",  "configuration": "Release" }
   ]
 }
