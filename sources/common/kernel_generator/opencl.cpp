@@ -69,17 +69,39 @@ bool common::KernelGeneratorOpenCL::build(cl::Device* const clDevice, cl::Contex
         clProgram = cl::Program(*clContext, fullSource);
 
         ////////////////////////////////////////////////////////////////////////
+        // -cl-fast-relaxed-math implies -cl-no-signed-zeros and -cl-mad-enable
+        // per the OpenCL spec, so those are not added separately.
         compileFlags += " -cl-fast-relaxed-math";
-        compileFlags += " -cl-no-signed-zeros";
-        compileFlags += " -cl-mad-enable";
-        // TODO: -cl-std=CL3.0
-        compileFlags += " -cl-std=CL2.0";
-        // TODO: use 32 or 64 wavefront
-        // compileFlags += " -mwavefrontsize32";
+
+        // Kernel-language version is a device capability, not a platform: query
+        // it at runtime so Apple (OpenCL C 1.2) and modern AMD (3.0) each get the
+        // highest -cl-std they support. Falls back to 1.2 if the version string
+        // cannot be parsed.
+        std::string const deviceClcVersion{ clDevice->getInfo<CL_DEVICE_OPENCL_C_VERSION>() };
+        char const* clStd{ " -cl-std=CL1.2" };
+        if (std::string::npos != deviceClcVersion.find("OpenCL C 3."))
+        {
+            clStd = " -cl-std=CL3.0";
+        }
+        else if (std::string::npos != deviceClcVersion.find("OpenCL C 2."))
+        {
+            clStd = " -cl-std=CL2.0";
+        }
+        compileFlags += clStd;
+
+        // -O3 is a clang/AMD extension, not a standard OpenCL build option; Apple's
+        // 1.2 compiler rejects it with CL_INVALID_BUILD_OPTIONS. Use the standard
+        // -cl-opt-disable for debug everywhere, and keep -O3 only off-Apple.
+        std::string const platformVendor{
+            cl::Platform(clDevice->getInfo<CL_DEVICE_PLATFORM>()).getInfo<CL_PLATFORM_VENDOR>() };
+        bool const isApplePlatform{ std::string::npos != platformVendor.find("Apple") };
 #if defined(__DEBUG)
-        compileFlags += " -O0";
+        compileFlags += " -cl-opt-disable";
 #else
-        compileFlags += " -O3";
+        if (false == isApplePlatform)
+        {
+            compileFlags += " -O3";
+        }
 #endif
         compileFlags += " -I ./";
 
