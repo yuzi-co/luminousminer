@@ -138,6 +138,5 @@ Each GPU has two streams (CUDA) or two command queues (OpenCL). Iteration N runs
 | Google Test | — | Unit tests |
 
 See `documentation/build/` for full installation instructions per platform and method:
-from scratch (`BUILD_LINUX.md`, `BUILD_WINDOWS.md`) and Docker toolchain
-(`BUILD_DOCKER_LINUX.md`, `BUILD_DOCKER_WINDOWS.md`, `BUILD_DOCKER_MACOS.md`,
-`BUILD_DOCKER_LINUX_ARM64.md`).
+from scratch (`BUILD_LINUX.md`, `BUILD_WINDOWS.md`, `BUILD_MACOS.md`) and Docker toolchain
+(`BUILD_DOCKER_LINUX.md`, `BUILD_DOCKER_WINDOWS.md`, `BUILD_DOCKER_LINUX_ARM64.md`).

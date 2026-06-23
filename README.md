@@ -35,11 +35,11 @@ Different profiles are available:
 From scratch (native toolchain):  
 [Linux](https://github.com/luminousmining/miner/tree/main/documentation/build/BUILD_LINUX.md)  
 [Windows](https://github.com/luminousmining/miner/tree/main/documentation/build/BUILD_WINDOWS.md)  
+[macOS](https://github.com/luminousmining/miner/tree/main/documentation/build/BUILD_MACOS.md)  
 
 Docker toolchain (no local toolchain):  
 [Docker Linux](https://github.com/luminousmining/miner/tree/main/documentation/build/BUILD_DOCKER_LINUX.md)  
 [Docker Windows](https://github.com/luminousmining/miner/tree/main/documentation/build/BUILD_DOCKER_WINDOWS.md)  
-[Docker macOS](https://github.com/luminousmining/miner/tree/main/documentation/build/BUILD_DOCKER_MACOS.md)  
 [Docker Linux ARM64](https://github.com/luminousmining/miner/tree/main/documentation/build/BUILD_DOCKER_LINUX_ARM64.md)  
 
 [Parameters](https://github.com/luminousmining/miner/tree/main/documentation/PARAMETERS.md)  
