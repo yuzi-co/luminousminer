@@ -90,7 +90,6 @@
         "BUILD_NVIDIA": "OFF",
         "BUILD_CPU": "ON",
         "BUILD_EXE_BENCHMARK": "ON",
-        "BUILD_EXE_UNIT_TEST": "ON",
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
         "VCPKG_MANIFEST_FEATURES": "openssl;opencl"
       }
