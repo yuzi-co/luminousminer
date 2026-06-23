@@ -6,6 +6,7 @@
 #include <common/cast.hpp>
 #include <common/custom.hpp>
 #include <common/log/log.hpp>
+#include <common/opencl/platform_match.hpp>
 
 
 uint32_t benchmark::getDeviceCount()
@@ -18,7 +19,7 @@ uint32_t benchmark::getDeviceCount()
     for (cl::Platform const& platform : platforms)
     {
         std::string const platformName{ platform.getInfo<CL_PLATFORM_NAME>() };
-        if (platformName.find("AMD") == std::string::npos)
+        if (false == common::opencl::isUsablePlatform(platformName))
         {
             continue;
         }
@@ -41,7 +42,7 @@ std::optional<cl::Device> benchmark::getDevice(uint32_t const index)
     for (cl::Platform const& platform : platforms)
     {
         std::string const platformName{ platform.getInfo<CL_PLATFORM_NAME>() };
-        if (platformName.find("AMD") == std::string::npos)
+        if (false == common::opencl::isUsablePlatform(platformName))
         {
             continue;
         }
@@ -59,7 +60,7 @@ std::optional<cl::Device> benchmark::getDevice(uint32_t const index)
         {
             size_t const      indexBuffer{ totalIndex - castSize(index) - castSize(1u) };
             cl::Device const& clDevice{ cldevices[indexBuffer] };
-            logInfo() << "Device [" << clDevice.getInfo<CL_DEVICE_BOARD_NAME_AMD>() << "] selected!";
+            logInfo() << "Device [" << clDevice.getInfo<LM_OPENCL_BOARD_NAME>() << "] selected!";
             return clDevice;
         }
 
