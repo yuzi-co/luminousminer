@@ -28,6 +28,7 @@
 #include <common/error/cuda_error.hpp>
 #include <common/error/opencl_error.hpp>
 #include <common/formater_hashrate.hpp>
+#include <common/opencl/platform_match.hpp>
 #include <device/amd.hpp>
 #include <device/cpu.hpp>
 #include <device/device_manager.hpp>
@@ -456,7 +457,7 @@ bool device::DeviceManager::initializeAmd()
     for (cl::Platform const& platform : platforms)
     {
         std::string const platformName{ platform.getInfo<CL_PLATFORM_NAME>() };
-        if (platformName.find("AMD") == std::string::npos)
+        if (false == common::opencl::isUsablePlatform(platformName))
         {
             continue;
         }
@@ -484,6 +485,13 @@ bool device::DeviceManager::initializeAmd()
             device->id = castU32(devices.size());
 
             ////////////////////////////////////////////////////////////////////////////
+            // CL_DEVICE_TOPOLOGY_AMD and the AMD free-memory query (0x4039) are
+            // cl_amd_device_attribute_query extensions absent on Apple's OpenCL.
+            // Use standard queries there: no PCI topology, total global memory.
+#if defined(__APPLE__)
+            device->pciBus = 0u;
+            device->memoryAvailable = castU64(device->clDevice.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>());
+#else
             cl_char topology[24]{
                 0,
             };
@@ -496,9 +504,10 @@ bool device::DeviceManager::initializeAmd()
             OPENCL_ER(
                 clGetDeviceInfo(device->clDevice.get(), 0x4039, sizeof(memoryAvailable), &memoryAvailable, nullptr));
             device->memoryAvailable = castU64(memoryAvailable) * (1024ull * 1024ull);
+#endif
 
             ////////////////////////////////////////////////////////////////////////////
-            logInfo() << "GPU[" << device->id << "] " << device->clDevice.getInfo<CL_DEVICE_BOARD_NAME_AMD>();
+            logInfo() << "GPU[" << device->id << "] " << device->clDevice.getInfo<LM_OPENCL_BOARD_NAME>();
             devices.push_back(device);
         }
     }
